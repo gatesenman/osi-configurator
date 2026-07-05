@@ -21,26 +21,30 @@ type Tab = 'general' | 'provider'
 export function SettingsDialog({
   open,
   appSettings,
+  initialTab = 'general',
   onClose,
   onAppSettingsChange,
 }: {
   open: boolean
   appSettings: AppSettings
+  /** 打开时定位到的分区（如从 AI 面板跳转到「模型提供商」） */
+  initialTab?: Tab
   onClose: () => void
   onAppSettingsChange: (s: AppSettings) => void
 }) {
-  const [tab, setTab] = useState<Tab>('general')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [ai, setAi] = useState<AiSettings>(loadAiSettings)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
 
-  // 每次打开重新加载（AI 面板等其他入口可能改过设置）
+  // 每次打开重新加载（AI 面板等其他入口可能改过设置），并定位到指定分区
   useEffect(() => {
     if (open) {
       setAi(loadAiSettings())
       setTestResult(null)
+      setTab(initialTab)
     }
-  }, [open])
+  }, [open, initialTab])
 
   if (!open) return null
 

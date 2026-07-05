@@ -6,25 +6,9 @@ import type { OsiModel } from '@/lib/osi-types'
 import { toYaml } from '@/lib/osi-serialize'
 import { importSpec } from '@/lib/osi-import'
 import type { AiMode, AiSettings } from '@/lib/osi-ai'
-import {
-  AI_PROVIDERS,
-  buildMessages,
-  extractYaml,
-  loadAiSettings,
-  saveAiSettings,
-  streamChatCompletion,
-} from '@/lib/osi-ai'
+import { AI_PROVIDERS, buildMessages, extractYaml, loadAiSettings, streamChatCompletion } from '@/lib/osi-ai'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 type Phase = 'idle' | 'streaming' | 'done' | 'error'
 
@@ -33,14 +17,16 @@ export function AiPanel({
   model,
   onClose,
   onApply,
+  onOpenSettings,
 }: {
   open: boolean
   model: OsiModel
   onClose: () => void
   onApply: (m: OsiModel) => void
+  /** 跳转到系统设置的「模型提供商」分区 */
+  onOpenSettings?: () => void
 }) {
   const [settings, setSettings] = useState<AiSettings>(loadAiSettings)
-  const [showSettings, setShowSettings] = useState(false)
   const [mode, setMode] = useState<AiMode>('generate')
   const [instruction, setInstruction] = useState('')
   const [phase, setPhase] = useState<Phase>('idle')
@@ -54,14 +40,9 @@ export function AiPanel({
     [settings.providerId],
   )
 
-  // 打开时重新加载设置（系统设置对话框可能改过共享配置）；无 API Key 时自动展开设置
+  // 打开时重新加载设置（系统设置里可能刚改过提供商配置）
   useEffect(() => {
-    if (!open) return
-    const latest = loadAiSettings()
-    setSettings(latest)
-    const p = AI_PROVIDERS.find((x) => x.id === latest.providerId) ?? AI_PROVIDERS[0]
-    if (!latest.apiKey && p.id !== 'ollama') setShowSettings(true)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (open) setSettings(loadAiSettings())
   }, [open])
 
   // 流式输出时自动滚到底部
@@ -72,24 +53,13 @@ export function AiPanel({
 
   if (!open) return null
 
-  const updateSettings = (patch: Partial<AiSettings>) => {
-    const next = { ...settings, ...patch }
-    setSettings(next)
-    saveAiSettings(next)
-  }
-
-  const switchProvider = (id: string | null) => {
-    const p = AI_PROVIDERS.find((x) => x.id === id)
-    if (!p) return
-    updateSettings({ providerId: p.id, baseUrl: p.baseUrl, model: p.defaultModel })
-  }
-
-  const canRun =
-    instruction.trim().length > 0 &&
+  /** 提供商是否已配置就绪（本地 Ollama 无需 Key） */
+  const configured =
     settings.baseUrl.trim().length > 0 &&
     settings.model.trim().length > 0 &&
-    (settings.apiKey.trim().length > 0 || provider.id === 'ollama') &&
-    phase !== 'streaming'
+    (settings.apiKey.trim().length > 0 || provider.id === 'ollama')
+
+  const canRun = configured && instruction.trim().length > 0 && phase !== 'streaming'
 
   const run = async () => {
     setPhase('streaming')
@@ -136,7 +106,7 @@ export function AiPanel({
       className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="AI 生成 OSI 规范"
+      aria-label="AI 生成"
       onClick={(e) => {
         if (e.target === e.currentTarget && phase !== 'streaming') onClose()
       }}
@@ -146,18 +116,12 @@ export function AiPanel({
         <div className="flex shrink-0 items-center justify-between border-b border-border bg-muted/60 px-4 py-3">
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-primary" />
-            <h2 className="text-sm font-semibold">AI 生成 OSI 规范</h2>
+            <h2 className="text-sm font-semibold">AI 生成</h2>
           </div>
           <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs"
-              onClick={() => setShowSettings((v) => !v)}
-            >
-              <Settings2 className="size-3.5" />
-              {provider.label.split(' ')[0]} · {settings.model || '未选模型'}
-            </Button>
+            <span className="hidden text-xs text-muted-foreground sm:inline">
+              {provider.label} · {settings.model || '未选模型'}
+            </span>
             <Button
               variant="ghost"
               size="icon"
@@ -172,66 +136,24 @@ export function AiPanel({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {/* 提供商设置 */}
-          {showSettings ? (
-            <div className="mb-4 flex flex-col gap-3 rounded-md border border-border bg-background p-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs">模型提供商</Label>
-                  <Select value={settings.providerId} onValueChange={switchProvider}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue>{provider.label}</SelectValue>
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AI_PROVIDERS.map((p) => (
-                        <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label className="text-xs">模型 ID</Label>
-                  <Input
-                    className="h-8 font-mono text-xs"
-                    value={settings.model}
-                    list="osi-ai-models"
-                    placeholder="如 deepseek-ai/DeepSeek-V3"
-                    onChange={(e) => updateSettings({ model: e.target.value })}
-                  />
-                  <datalist id="osi-ai-models">
-                    {provider.models.map((m) => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">API 地址（OpenAI 兼容）</Label>
-                <Input
-                  className="h-8 font-mono text-xs"
-                  value={settings.baseUrl}
-                  placeholder="https://api.siliconflow.cn/v1"
-                  onChange={(e) => updateSettings({ baseUrl: e.target.value })}
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs">
-                  API Key{provider.id === 'ollama' ? '（本地 Ollama 可留空）' : ''}
-                </Label>
-                <Input
-                  className="h-8 font-mono text-xs"
-                  type="password"
-                  value={settings.apiKey}
-                  placeholder="sk-..."
-                  autoComplete="off"
-                  onChange={(e) => updateSettings({ apiKey: e.target.value })}
-                />
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
-                  Key 仅保存在本机浏览器（localStorage），请求直连提供商，不经过任何中间服务器。
-                </p>
-              </div>
+          {/* 未配置提供商 → 引导到系统设置 */}
+          {!configured ? (
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-border bg-muted/40 px-3 py-2.5">
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                尚未配置模型提供商，请先在系统设置中填写 API Key 等信息。
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 shrink-0 gap-1.5 bg-transparent text-xs"
+                onClick={() => {
+                  onClose()
+                  onOpenSettings?.()
+                }}
+              >
+                <Settings2 className="size-3.5" />
+                去设置
+              </Button>
             </div>
           ) : null}
 

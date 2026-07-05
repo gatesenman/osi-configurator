@@ -81,6 +81,7 @@ export function OsiConfigurator() {
   const [importError, setImportError] = useState<string | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'general' | 'provider'>('general')
   const [appSettings, setAppSettings] = useState<AppSettings>(loadAppSettings)
   const mainRef = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -379,12 +380,20 @@ export function OsiConfigurator() {
           setSelection(null)
           setSection('model')
         }}
+        onOpenSettings={() => {
+          setSettingsTab('provider')
+          setSettingsOpen(true)
+        }}
       />
 
       <SettingsDialog
         open={settingsOpen}
         appSettings={appSettings}
-        onClose={() => setSettingsOpen(false)}
+        initialTab={settingsTab}
+        onClose={() => {
+          setSettingsOpen(false)
+          setSettingsTab('general')
+        }}
         onAppSettingsChange={updateAppSettings}
       />
     </div>
