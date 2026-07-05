@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma, Upload } from 'lucide-react'
+import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma, Sparkles, Upload } from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey } from '@/lib/osi-serialize'
 import { OSI_VERSION } from '@/lib/osi-serialize'
@@ -14,6 +14,7 @@ import { DatasetsPanel } from './datasets-panel'
 import { MetricsPanel } from './metrics-panel'
 import { RelationshipsPanel } from './relationships-panel'
 import { SpecPreview } from './spec-preview'
+import { AiPanel } from './ai-panel'
 
 type Section = 'model' | 'datasets' | 'relationships' | 'metrics'
 
@@ -65,6 +66,7 @@ export function OsiConfigurator() {
   /** 每次选择的事件元数据：y = 触发源在视口中的纵坐标（用于两侧位置对齐），n = 单调递增（同一实体重复点击也重新滚动） */
   const [selEvent, setSelEvent] = useState<{ y: number | null; n: number }>({ y: null, n: 0 })
   const [importError, setImportError] = useState<string | null>(null)
+  const [aiOpen, setAiOpen] = useState(false)
   const mainRef = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const selectionSource = useRef<'form' | 'preview'>('form')
@@ -208,6 +210,10 @@ export function OsiConfigurator() {
               e.target.value = ''
             }}
           />
+          <Button size="sm" className="h-8 gap-1.5" onClick={() => setAiOpen(true)}>
+            <Sparkles className="size-3.5" />
+            <span className="hidden sm:inline">AI 生成</span>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -318,6 +324,17 @@ export function OsiConfigurator() {
           />
         </aside>
       </div>
+
+      <AiPanel
+        open={aiOpen}
+        model={model}
+        onClose={() => setAiOpen(false)}
+        onApply={(m) => {
+          setModel(m)
+          setSelection(null)
+          setSection('model')
+        }}
+      />
     </div>
   )
 }
