@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma } from 'lucide-react'
+import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma, Upload } from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey } from '@/lib/osi-serialize'
 import { OSI_VERSION } from '@/lib/osi-serialize'
+import { importSpec } from '@/lib/osi-import'
 import { defaultModel } from '@/lib/osi-defaults'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +62,9 @@ export function OsiConfigurator() {
   const [model, setModel] = useState<OsiModel>(defaultModel)
   const [section, setSection] = useState<Section>('model')
   const [selection, setSelection] = useState<SelKey | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const selectionSource = useRef<'form' | 'preview'>('form')
 
   /** 从右侧预览（YAML/JSON 行或校验错误）选中实体 → 切换分区并定位表单 */
@@ -79,6 +82,31 @@ export function OsiConfigurator() {
     if (sel) {
       selectionSource.current = 'form'
       setSelection(sel)
+    }
+  }
+
+  /** 输入项获得焦点 → 自动联动高亮右侧对应行（Tab 键盘导航同样生效） */
+  const handleFormFocus = (e: React.FocusEvent) => {
+    const el = (e.target as HTMLElement).closest('[data-sel]')
+    if (!el) return
+    const sel = el.getAttribute('data-sel')
+    if (sel && sel !== selection) {
+      selectionSource.current = 'form'
+      setSelection(sel)
+    }
+  }
+
+  /** 导入 OSI 规范文件（YAML / JSON） */
+  const handleImportFile = async (file: File) => {
+    const text = await file.text()
+    const result = importSpec(text)
+    if (result.ok && result.model) {
+      setModel(result.model)
+      setSelection(null)
+      setSection('model')
+      setImportError(null)
+    } else {
+      setImportError(result.error ?? '导入失败')
     }
   }
 
@@ -142,19 +170,58 @@ export function OsiConfigurator() {
             spec v{OSI_VERSION}
           </Badge>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 gap-1.5 bg-transparent"
-          onClick={() => {
-            setModel(defaultModel)
-            setSelection(null)
-          }}
-        >
-          <RotateCcw className="size-3.5" />
-          <span className="hidden sm:inline">重置示例</span>
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".yaml,.yml,.json,.osi"
+            className="sr-only"
+            aria-label="选择 OSI 规范文件"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleImportFile(file)
+              e.target.value = ''
+            }}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 bg-transparent"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="size-3.5" />
+            <span className="hidden sm:inline">导入</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 bg-transparent"
+            onClick={() => {
+              setModel(defaultModel)
+              setSelection(null)
+            }}
+          >
+            <RotateCcw className="size-3.5" />
+            <span className="hidden sm:inline">重置示例</span>
+          </Button>
+        </div>
       </header>
+
+      {importError ? (
+        <div
+          role="alert"
+          className="flex items-center justify-between gap-2 border-b border-destructive/30 bg-destructive/10 px-4 py-2 text-xs text-destructive md:px-6"
+        >
+          <span>导入失败：{importError}</span>
+          <button
+            type="button"
+            onClick={() => setImportError(null)}
+            className="shrink-0 underline underline-offset-2"
+          >
+            关闭
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* 左侧导航 */}
@@ -189,6 +256,7 @@ export function OsiConfigurator() {
         <main
           ref={mainRef}
           onClickCapture={handleFormClick}
+          onFocusCapture={handleFormFocus}
           className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 lg:min-w-0"
         >
           <div className="mx-auto max-w-2xl">

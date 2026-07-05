@@ -54,10 +54,10 @@ function FieldCard({
   return (
     <div
       ref={rootRef}
-      className="rounded-md border border-border bg-background"
+      className="overflow-hidden rounded-md border border-border border-l-2 border-l-chart-2/50 bg-background"
       data-sel={`field:${field.id}`}
     >
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className={`flex items-center gap-2 px-3 py-2 ${open ? 'bg-muted/40' : ''}`}>
         <button
           type="button"
           onClick={() => setOpen(!open)}
@@ -251,8 +251,11 @@ function DatasetCard({
     ])
 
   return (
-    <div className="rounded-lg border border-border bg-card" data-sel={`dataset:${dataset.id}`}>
-      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+    <div
+      className="overflow-hidden rounded-lg border border-border border-l-2 border-l-primary/60 bg-card"
+      data-sel={`dataset:${dataset.id}`}
+    >
+      <div className="flex items-center justify-between border-b border-border bg-muted/60 px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
           <Database className="size-4 shrink-0 text-primary" />
           <span className="truncate font-mono text-sm font-medium">
@@ -337,9 +340,14 @@ function DatasetCard({
           sel={`dataset:${dataset.id}`}
         />
 
-        <div className="flex flex-col gap-2 rounded-md" data-sel={`dataset:${dataset.id}.fields`}>
+        <div
+          className="ml-1 flex flex-col gap-2 rounded-md border-l-2 border-border pl-3"
+          data-sel={`dataset:${dataset.id}.fields`}
+        >
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">fields（行级字段）</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              fields（行级字段）
+            </p>
             <Button
               variant="ghost"
               size="sm"
