@@ -1,0 +1,39 @@
+appId: app.v0.osi-configurator
+productName: OSI Configurator
+copyright: Copyright © 2026
+
+directories:
+  output: dist
+  buildResources: build
+
+# 仅打包 Electron 壳与静态导出产物，排除 node_modules（运行时零依赖，包体更小）
+files:
+  - electron/**/*
+  - out/**/*
+  - package.json
+  - "!node_modules/**/*"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+
+mac:
+  target:
+    - target: dmg
+      arch: [universal]
+  icon: build/icon.png
+  category: public.app-category.developer-tools
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: build/icon.png
+  category: Development

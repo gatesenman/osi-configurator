@@ -37,6 +37,24 @@ pnpm start
 - 代码中无硬编码路径分隔符、无平台特定 API
 - `package.json` 的 `engines` 与 `packageManager` 字段锁定 Node / pnpm 版本，配合 `corepack enable` 三平台行为一致
 
+## 桌面版（Windows .exe / macOS .dmg / Linux .AppImage）
+
+推送到 `main` 分支后，GitHub Actions 会自动在三平台云端机器上构建安装包：
+
+1. 打开仓库的 **Actions** 页 → 选择最近一次 **Build Desktop Apps** 运行
+2. 在页面底部 **Artifacts** 下载：`windows-exe`（NSIS 安装器）、`macos-dmg`（Universal，Intel/Apple Silicon 通用）、`linux-appimage`
+3. 推送 `v*` 标签（如 `v0.1.0`）会自动创建 GitHub Release 并附带三平台安装包
+
+> 安装包未做代码签名：Windows 首次运行需在 SmartScreen 中点「仍要运行」；macOS 首次打开需右键 →「打开」（或在 系统设置 → 隐私与安全性 中允许）。
+
+本地构建当前平台安装包：
+
+```bash
+pnpm desktop:build   # 产物在 dist/
+```
+
+> 注意：macOS 安装包只能在 Mac 上构建，Windows 安装包建议在 Windows 上构建——这正是交给 GitHub Actions 云端矩阵构建的原因。
+
 ## 技术栈
 
 - Next.js 16（App Router）+ React 19 + TypeScript

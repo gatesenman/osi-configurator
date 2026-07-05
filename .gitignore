@@ -13,3 +13,7 @@ __v0_jsx-dev-runtime.ts
 node_modules
 .next/
 .DS_Store
+
+# 构建产物（Next.js 静态导出 / Electron 打包）
+out/
+dist/
