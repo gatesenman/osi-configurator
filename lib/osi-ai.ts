@@ -101,13 +101,24 @@ export interface AiSettings {
   baseUrl: string
   model: string
   apiKey: string
+  /** 采样温度 0-2，规范生成建议低温 */
+  temperature: number
+  /** 最大输出 tokens，0 表示交给提供商默认 */
+  maxTokens: number
 }
 
 const SETTINGS_KEY = 'osi-ai-settings'
 
 export function defaultAiSettings(): AiSettings {
   const p = AI_PROVIDERS[0]
-  return { providerId: p.id, baseUrl: p.baseUrl, model: p.defaultModel, apiKey: '' }
+  return {
+    providerId: p.id,
+    baseUrl: p.baseUrl,
+    model: p.defaultModel,
+    apiKey: '',
+    temperature: 0.2,
+    maxTokens: 0,
+  }
 }
 
 export function loadAiSettings(): AiSettings {
@@ -176,6 +187,30 @@ semantic_model:                      # 顶层数组，通常一个元素
 4. relationships 的 from/to 必须引用已定义数据集的 name，列必须存在于对应数据集
 5. 为常用实体补充合理的 ai_context（同义词、口径说明），提升语义层可用性`
 
+/** 测试提供商连通性：请求 /models 列表（多数 OpenAI 兼容服务支持） */
+export async function testConnection(settings: AiSettings): Promise<{ ok: boolean; message: string }> {
+  const base = settings.baseUrl.replace(/\/+$/, '')
+  if (!base) return { ok: false, message: '请先填写 API 地址' }
+  try {
+    const res = await fetch(`${base}/models`, {
+      headers: settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {},
+      signal: AbortSignal.timeout(10000),
+    })
+    if (res.ok) {
+      const data = (await res.json().catch(() => null)) as { data?: { id: string }[] } | null
+      const count = data?.data?.length
+      return { ok: true, message: `连接成功${typeof count === 'number' ? `，可用模型 ${count} 个` : ''}` }
+    }
+    if (res.status === 401 || res.status === 403) return { ok: false, message: 'API Key 无效或无权限' }
+    return { ok: false, message: `连接失败 HTTP ${res.status}` }
+  } catch (e) {
+    return {
+      ok: false,
+      message: e instanceof Error && e.name === 'TimeoutError' ? '连接超时（10s）' : '网络错误，无法连接到该地址',
+    }
+  }
+}
+
 export type AiMode = 'generate' | 'adjust'
 
 export function buildMessages(mode: AiMode, instruction: string, currentYaml?: string) {
@@ -218,7 +253,8 @@ export async function streamChatCompletion(
       model: settings.model,
       messages,
       stream: true,
-      temperature: 0.2,
+      temperature: settings.temperature ?? 0.2,
+      ...(settings.maxTokens > 0 ? { max_tokens: settings.maxTokens } : {}),
     }),
     signal,
   })

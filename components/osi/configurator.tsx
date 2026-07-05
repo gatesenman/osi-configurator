@@ -1,11 +1,23 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma, Sparkles, Upload } from 'lucide-react'
+import {
+  Database,
+  FileText,
+  Hexagon,
+  Link2,
+  RotateCcw,
+  Settings,
+  Sigma,
+  Sparkles,
+  Upload,
+} from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey } from '@/lib/osi-serialize'
 import { OSI_VERSION } from '@/lib/osi-serialize'
 import { importSpec } from '@/lib/osi-import'
+import type { AppSettings } from '@/lib/osi-settings'
+import { applyTheme, loadAppSettings, saveAppSettings } from '@/lib/osi-settings'
 import { defaultModel } from '@/lib/osi-defaults'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +27,7 @@ import { MetricsPanel } from './metrics-panel'
 import { RelationshipsPanel } from './relationships-panel'
 import { SpecPreview } from './spec-preview'
 import { AiPanel } from './ai-panel'
+import { SettingsDialog } from './settings-dialog'
 
 type Section = 'model' | 'datasets' | 'relationships' | 'metrics'
 
@@ -67,9 +80,26 @@ export function OsiConfigurator() {
   const [selEvent, setSelEvent] = useState<{ y: number | null; n: number }>({ y: null, n: 0 })
   const [importError, setImportError] = useState<string | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [appSettings, setAppSettings] = useState<AppSettings>(loadAppSettings)
   const mainRef = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const selectionSource = useRef<'form' | 'preview'>('form')
+
+  // 应用主题；跟随系统时监听系统偏好变化
+  useEffect(() => {
+    applyTheme(appSettings.theme)
+    if (appSettings.theme !== 'system') return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => applyTheme('system')
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [appSettings.theme])
+
+  const updateAppSettings = (s: AppSettings) => {
+    setAppSettings(s)
+    saveAppSettings(s)
+  }
 
   /** 从右侧预览（YAML/JSON 行或校验错误）选中实体 → 切换分区并定位表单（对齐到被点行的视口位置） */
   const handlePreviewSelect = (sel: SelKey | null, y?: number) => {
@@ -144,13 +174,15 @@ export function OsiConfigurator() {
     const highlight = (el: Element) => {
       clear()
       el.classList.add('sel-active')
-      if (selectionSource.current === 'preview') alignScroll(el)
+      if (selectionSource.current === 'preview' && appSettings.linkScroll) alignScroll(el)
     }
 
     const target = findSelTarget(root, selection)
     if (!target) return
     // 通知折叠容器（如字段卡）展开自身，事件冒泡覆盖所有祖先
-    target.dispatchEvent(new Event('osi-reveal', { bubbles: true }))
+    if (appSettings.autoExpand) {
+      target.dispatchEvent(new Event('osi-reveal', { bubbles: true }))
+    }
     highlight(target)
     // 展开渲染是异步的：轮询重试，直到找到精确的输入项再重新对齐
     let attempts = 0
@@ -163,12 +195,14 @@ export function OsiConfigurator() {
         clearInterval(timer)
       } else if (attempts >= 6) {
         // 展开完成后目标仍是自身（如实体根卡片）：补一次对齐，修正展开导致的位移
-        if (precise && selectionSource.current === 'preview') alignScroll(precise)
+        if (precise && selectionSource.current === 'preview' && appSettings.linkScroll) {
+          alignScroll(precise)
+        }
         clearInterval(timer)
       }
     }, 90)
     return () => clearInterval(timer)
-  }, [selection, selEvent, section, model])
+  }, [selection, selEvent, section, model, appSettings.linkScroll, appSettings.autoExpand])
 
   const counts: Record<Section, number | null> = {
     model: null,
@@ -234,6 +268,15 @@ export function OsiConfigurator() {
           >
             <RotateCcw className="size-3.5" />
             <span className="hidden sm:inline">重置示例</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="size-8 bg-transparent"
+            onClick={() => setSettingsOpen(true)}
+            aria-label="系统设置"
+          >
+            <Settings className="size-3.5" />
           </Button>
         </div>
       </header>
@@ -320,6 +363,8 @@ export function OsiConfigurator() {
             model={model}
             selection={selection}
             align={selEvent}
+            defaultFormat={appSettings.previewFormat}
+            linkScroll={appSettings.linkScroll}
             onSelect={handlePreviewSelect}
           />
         </aside>
@@ -334,6 +379,13 @@ export function OsiConfigurator() {
           setSelection(null)
           setSection('model')
         }}
+      />
+
+      <SettingsDialog
+        open={settingsOpen}
+        appSettings={appSettings}
+        onClose={() => setSettingsOpen(false)}
+        onAppSettingsChange={updateAppSettings}
       />
     </div>
   )

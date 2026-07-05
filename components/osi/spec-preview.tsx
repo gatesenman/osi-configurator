@@ -109,15 +109,26 @@ export function SpecPreview({
   model,
   selection,
   align,
+  defaultFormat = 'yaml',
+  linkScroll = true,
   onSelect,
 }: {
   model: OsiModel
   selection: SelKey | null
   /** 选择事件元数据：y = 触发源视口纵坐标（位置对齐用），n = 单调递增（同一选择重复触发也重新滚动） */
   align: { y: number | null; n: number }
+  /** 默认显示格式（系统设置） */
+  defaultFormat?: Format
+  /** 联动时是否自动滚动对齐（系统设置） */
+  linkScroll?: boolean
   onSelect: (sel: SelKey | null, y?: number) => void
 }) {
-  const [format, setFormat] = useState<Format>('yaml')
+  const [format, setFormat] = useState<Format>(defaultFormat)
+
+  // 系统设置里改了默认格式 → 同步切换（用户手动切换标签仍然优先生效）
+  useEffect(() => {
+    setFormat(defaultFormat)
+  }, [defaultFormat])
   const [copied, setCopied] = useState(false)
   const [showErrors, setShowErrors] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -138,7 +149,7 @@ export function SpecPreview({
       return
     }
     const container = scrollRef.current
-    if (!selection || !container) return
+    if (!selection || !container || !linkScroll) return
     let idx = lines.findIndex((l) => l.sel === selection)
     if (idx < 0) idx = lines.findIndex((l) => l.sel?.startsWith(`${selection}.`))
     if (idx < 0) return
@@ -155,7 +166,7 @@ export function SpecPreview({
       top: container.scrollTop + rect.top + rect.height / 2 - y,
       behavior: 'smooth',
     })
-  }, [selection, align, lines])
+  }, [selection, align, lines, linkScroll])
 
   const copy = async () => {
     await navigator.clipboard.writeText(content)

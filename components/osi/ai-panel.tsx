@@ -54,9 +54,13 @@ export function AiPanel({
     [settings.providerId],
   )
 
-  // 无 API Key 时首次打开自动展开设置
+  // 打开时重新加载设置（系统设置对话框可能改过共享配置）；无 API Key 时自动展开设置
   useEffect(() => {
-    if (open && !settings.apiKey && provider.id !== 'ollama') setShowSettings(true)
+    if (!open) return
+    const latest = loadAiSettings()
+    setSettings(latest)
+    const p = AI_PROVIDERS.find((x) => x.id === latest.providerId) ?? AI_PROVIDERS[0]
+    if (!latest.apiKey && p.id !== 'ollama') setShowSettings(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
