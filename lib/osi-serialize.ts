@@ -66,6 +66,8 @@ function customExtensions(exts: OsiCustomExtension[]): unknown {
 
 /** $defs/Expression：{ dialects: [{ dialect, expression }] }（minItems: 1） */
 function expression(dialects: { dialect: string; expression: string }[]): unknown {
+  // 无方言时省略 expression：物理列字段本就可选；指标缺失时由 Schema 校验以 required 提示
+  if (dialects.length === 0) return undefined
   return {
     dialects: dialects.map((d) => ({
       dialect: d.dialect,

@@ -27,7 +27,7 @@ function asStringArray(v: unknown): string[] {
 }
 
 /** $defs/AIContext：oneOf [string, { instructions, synonyms, examples, ...任意附加键 }] */
-function importAiContext(v: unknown): OsiAiContext {
+export function importAiContext(v: unknown): OsiAiContext {
   if (typeof v === 'string') {
     return { ...emptyAiContext(), enabled: true, mode: 'text', text: v }
   }
@@ -50,7 +50,7 @@ function importAiContext(v: unknown): OsiAiContext {
 }
 
 /** $defs/CustomExtension[]：data 可能是对象或字符串，统一存为 JSON 字符串 */
-function importCustomExtensions(v: unknown): OsiCustomExtension[] {
+export function importCustomExtensions(v: unknown): OsiCustomExtension[] {
   if (!Array.isArray(v)) return []
   return v
     .filter((e): e is Record<string, unknown> => e !== null && typeof e === 'object')
@@ -63,7 +63,7 @@ function importCustomExtensions(v: unknown): OsiCustomExtension[] {
 }
 
 /** $defs/Expression：{ dialects: [{ dialect, expression }] } */
-function importDialects(v: unknown): OsiDialectExpression[] {
+export function importDialects(v: unknown): OsiDialectExpression[] {
   if (v === null || typeof v !== 'object') return []
   const dialects = (v as Record<string, unknown>).dialects
   if (!Array.isArray(dialects)) return []
@@ -88,7 +88,7 @@ function importDimensionMode(v: unknown): DimensionMode {
   return 'none'
 }
 
-function importField(v: Record<string, unknown>): OsiField {
+export function importField(v: Record<string, unknown>): OsiField {
   return {
     id: uid(),
     name: asString(v.name),
@@ -101,7 +101,7 @@ function importField(v: Record<string, unknown>): OsiField {
   }
 }
 
-function importDataset(v: Record<string, unknown>): OsiDataset {
+export function importDataset(v: Record<string, unknown>): OsiDataset {
   const uniqueKeys = Array.isArray(v.unique_keys)
     ? v.unique_keys
         .map((uk) => asStringArray(uk))

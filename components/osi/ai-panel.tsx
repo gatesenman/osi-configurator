@@ -7,7 +7,8 @@ import { toYaml } from '@/lib/osi-serialize'
 import { importSpec } from '@/lib/osi-import'
 import type { AiMode, AiSettings } from '@/lib/osi-ai'
 import { AI_PROVIDERS, buildMessages, extractYaml, loadAiSettings, streamChatCompletion } from '@/lib/osi-ai'
-import { mergeModels, summaryParts } from '@/lib/osi-merge'
+import { summaryParts } from '@/lib/osi-merge'
+import { applyPatch } from '@/lib/osi-patch'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -53,12 +54,10 @@ export function AiPanel({
     if (el && phase === 'streaming') el.scrollTop = el.scrollHeight
   }, [output, phase])
 
-  /** 调整模式：预解析结果并计算局部变更摘要（应用前可确认改动范围）。必须在提前返回之前调用，保证 hooks 顺序稳定 */
+  /** 调整模式：预解析操作列表并试算变更摘要（应用前可确认改动范围）。必须在提前返回之前调用，保证 hooks 顺序稳定 */
   const adjustPreview = useMemo(() => {
     if (phase !== 'done' || mode !== 'adjust' || !output) return null
-    const result = importSpec(extractYaml(output))
-    if (!result.ok || !result.models || result.models.length === 0) return null
-    return mergeModels(model, result.models[0])
+    return applyPatch(model, extractYaml(output))
   }, [phase, mode, output, model])
 
   if (!open) return null
@@ -99,13 +98,24 @@ export function AiPanel({
 
   const apply = () => {
     const yaml = extractYaml(output)
+    if (mode === 'adjust') {
+      // 局部调整：逐条应用操作到当前模型，未提及节点零触碰
+      const patch = applyPatch(model, yaml)
+      if (patch.ok && patch.model) {
+        onApply(patch.model, true)
+        setPhase('idle')
+        setOutput('')
+        onClose()
+      } else {
+        setError(`无法应用调整：${patch.error ?? '未知错误'}。可调整描述后重试。`)
+        setPhase('error')
+      }
+      return
+    }
+    // 生成新模型：整体导入
     const result = importSpec(yaml)
     if (result.ok && result.models && result.models.length > 0) {
-      // 调整模式：按名称局部合并——未变实体保留原引用与 id，只写入真正变化的部分
-      onApply(
-        mode === 'adjust' ? mergeModels(model, result.models[0]).merged : result.models[0],
-        mode === 'adjust',
-      )
+      onApply(result.models[0], false)
       setPhase('idle')
       setOutput('')
       onClose()
@@ -223,26 +233,41 @@ export function AiPanel({
             </p>
           ) : null}
 
-          {/* 调整模式：应用前展示局部变更摘要 */}
+          {/* 调整模式：应用前展示操作试算结果（变更摘要 + 警告） */}
           {adjustPreview ? (
-            adjustPreview.summary.hasChanges ? (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
-                <span className="text-xs text-muted-foreground">局部变更：</span>
-                {summaryParts(adjustPreview.summary).map((part) => (
-                  <span
-                    key={part}
-                    className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-foreground"
-                  >
-                    {part}
-                  </span>
-                ))}
-                <span className="w-full text-[11px] leading-relaxed text-muted-foreground">
-                  +新增 ~修改 -删除；未提及的实体保持原样，不会被重建
-                </span>
+            adjustPreview.ok && adjustPreview.summary ? (
+              <div className="mt-3 flex flex-col gap-2">
+                {adjustPreview.summary.hasChanges ? (
+                  <div className="flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
+                    <span className="text-xs text-muted-foreground">局部变更：</span>
+                    {summaryParts(adjustPreview.summary).map((part) => (
+                      <span
+                        key={part}
+                        className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-foreground"
+                      >
+                        {part}
+                      </span>
+                    ))}
+                    <span className="w-full text-[11px] leading-relaxed text-muted-foreground">
+                      +新增 ~修改 -删除；仅应用操作列表，未提及的节点零触碰
+                    </span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground">操作列表没有产生任何有效变更。</p>
+                )}
+                {adjustPreview.warnings.length > 0 ? (
+                  <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
+                    {adjustPreview.warnings.map((w) => (
+                      <p key={w} className="text-[11px] leading-relaxed text-muted-foreground">
+                        {w}
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : (
-              <p className="mt-3 text-xs text-muted-foreground">
-                模型返回的内容与当前模型一致，没有产生任何变更。
+              <p className="mt-3 text-xs leading-relaxed text-destructive">
+                {adjustPreview.error ?? '操作列表无法解析'}
               </p>
             )
           ) : null}

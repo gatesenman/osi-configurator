@@ -157,10 +157,10 @@ semantic_model:                      # 顶层数组，通常一个元素
         ai_context: 说明
         fields:                      # 行级字段
           - name: 字段名（必填）
-            expression:              # 计算字段才需要；物理列可省略
+            expression:              # 必填；物理列直接写列名作为表达式
               dialects:
                 - dialect: ANSI_SQL   # 枚举：ANSI_SQL / SNOWFLAKE_SQL / DATABRICKS_SQL / BIGQUERY_SQL / REDSHIFT_SQL / POSTGRES_SQL / MYSQL_SQL / TSQL
-                  expression: SQL 表达式
+                  expression: SQL 表达式或列名
             dimension: {}            # 是维度时给 {}；时间维度给 { is_time: true }；非维度省略
             label: 展示名
             description: 描述
@@ -213,12 +213,59 @@ export async function testConnection(settings: AiSettings): Promise<{ ok: boolea
 
 export type AiMode = 'generate' | 'adjust'
 
+/** 局部调整的操作列表格式说明：AI 只输出补丁操作，本地逐条应用，未提及节点零触碰 */
+const PATCH_GUIDE = `局部调整输出格式：只输出一个 yaml 代码块，顶层为 operations 操作数组，不要输出完整模型、不要输出解释文字。
+
+支持的操作（op 取值）：
+- set_model：修改模型级属性，只写需要改的键
+    { op: set_model, description: 新描述 }
+- upsert_dataset：新增数据集，或整体替换同名数据集（需给出该数据集完整定义）
+    { op: upsert_dataset, dataset: { name, source, primary_key, fields, ... } }
+- delete_dataset：删除数据集（引用它的关系会被级联删除）
+    { op: delete_dataset, name: 数据集名 }
+- upsert_field：在指定数据集中新增字段，或替换同名字段（只需给出该字段自身的完整定义）
+    { op: upsert_field, dataset: 数据集名, field: { name, expression, dimension, label, ... } }
+- delete_field：
+    { op: delete_field, dataset: 数据集名, name: 字段名 }
+- upsert_metric / delete_metric：
+    { op: upsert_metric, metric: { name, expression, description, ... } }
+    { op: delete_metric, name: 指标名 }
+- upsert_relationship / delete_relationship：
+    { op: upsert_relationship, relationship: { name, from, to, from_columns, to_columns } }
+    { op: delete_relationship, name: 关系名 }
+
+硬性要求：
+1. 只生成调整要求明确涉及的操作，绝不触碰未提及的实体
+2. 实体片段（dataset/field/metric/relationship）结构与 OSI 规范一致；field 和 metric 的 expression 必填且至少含一条 ANSI_SQL 方言
+3. upsert 按 name 匹配：存在即替换、不存在即新增，所以修改某实体时必须给出该实体的完整定义（不能只给改动的键）
+4. relationship 的 from/to 引用数据集 name
+
+输出示例：
+\`\`\`yaml
+operations:
+  - op: upsert_field
+    dataset: ds_orders
+    field:
+      name: channel
+      expression:
+        dialects:
+          - dialect: ANSI_SQL
+            expression: channel
+      dimension: {}
+      label: 渠道
+  - op: delete_metric
+    name: old_metric
+\`\`\``
+
 export function buildMessages(mode: AiMode, instruction: string, currentYaml?: string) {
-  const system = `你是数据语义层建模专家，精通 OSI（Open Semantic Interchange）开放语义互操作标准。\n\n${OSI_SPEC_GUIDE}`
+  const system =
+    mode === 'generate'
+      ? `你是数据语义层建模专家，精通 OSI（Open Semantic Interchange）开放语义互操作标准。\n\n${OSI_SPEC_GUIDE}`
+      : `你是数据语义层建模专家，精通 OSI（Open Semantic Interchange）开放语义互操作标准。你的任务是对现有 OSI 模型做局部调整。\n\n${OSI_SPEC_GUIDE}\n\n${PATCH_GUIDE}`
   const user =
     mode === 'generate'
       ? `请根据以下业务需求，从零生成一份完整的 OSI 语义模型 YAML：\n\n${instruction}`
-      : `以下是当前的 OSI 语义模型 YAML：\n\n\`\`\`yaml\n${currentYaml}\n\`\`\`\n\n请只做局部调整并输出调整后的完整 YAML。严格遵守：\n1. 只修改、新增或删除调整要求中明确提及的实体\n2. 未提及的实体必须逐字保留原样——不要重命名、不要改描述、不要增删 ai_context、不要调整顺序\n3. 应用侧会按实体名称做局部合并，任何多余改动都会被视为用户变更\n\n调整要求：\n\n${instruction}`
+      : `以下是当前的 OSI 语义模型 YAML（仅供参考实体名称与结构，不要重新输出它）：\n\n\`\`\`yaml\n${currentYaml}\n\`\`\`\n\n请根据以下调整要求，输出 operations 操作列表：\n\n${instruction}`
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },
