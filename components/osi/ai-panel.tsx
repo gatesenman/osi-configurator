@@ -53,6 +53,14 @@ export function AiPanel({
     if (el && phase === 'streaming') el.scrollTop = el.scrollHeight
   }, [output, phase])
 
+  /** 调整模式：预解析结果并计算局部变更摘要（应用前可确认改动范围）。必须在提前返回之前调用，保证 hooks 顺序稳定 */
+  const adjustPreview = useMemo(() => {
+    if (phase !== 'done' || mode !== 'adjust' || !output) return null
+    const result = importSpec(extractYaml(output))
+    if (!result.ok || !result.models || result.models.length === 0) return null
+    return mergeModels(model, result.models[0])
+  }, [phase, mode, output, model])
+
   if (!open) return null
 
   /** 提供商是否已配置就绪（本地 Ollama 无需 Key） */
@@ -88,14 +96,6 @@ export function AiPanel({
   }
 
   const stop = () => abortRef.current?.abort()
-
-  /** 调整模式：预解析结果并计算局部变更摘要（应用前可确认改动范围） */
-  const adjustPreview = useMemo(() => {
-    if (phase !== 'done' || mode !== 'adjust' || !output) return null
-    const result = importSpec(extractYaml(output))
-    if (!result.ok || !result.models || result.models.length === 0) return null
-    return mergeModels(model, result.models[0])
-  }, [phase, mode, output, model])
 
   const apply = () => {
     const yaml = extractYaml(output)
