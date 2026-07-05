@@ -62,38 +62,43 @@ export function OsiConfigurator() {
   const [model, setModel] = useState<OsiModel>(defaultModel)
   const [section, setSection] = useState<Section>('model')
   const [selection, setSelection] = useState<SelKey | null>(null)
+  /** 每次选择的事件元数据：y = 触发源在视口中的纵坐标（用于两侧位置对齐），n = 单调递增（同一实体重复点击也重新滚动） */
+  const [selEvent, setSelEvent] = useState<{ y: number | null; n: number }>({ y: null, n: 0 })
   const [importError, setImportError] = useState<string | null>(null)
   const mainRef = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const selectionSource = useRef<'form' | 'preview'>('form')
 
-  /** 从右侧预览（YAML/JSON 行或校验错误）选中实体 → 切换分区并定位表单 */
-  const handlePreviewSelect = (sel: SelKey | null) => {
+  /** 从右侧预览（YAML/JSON 行或校验错误）选中实体 → 切换分区并定位表单（对齐到被点行的视口位置） */
+  const handlePreviewSelect = (sel: SelKey | null, y?: number) => {
     selectionSource.current = 'preview'
     setSelection(sel)
+    setSelEvent((p) => ({ y: y ?? null, n: p.n + 1 }))
     if (sel) setSection(sectionForSel(sel))
   }
 
-  /** 左侧表单点击实体卡片 → 高亮右侧对应 YAML/JSON 行 */
-  const handleFormClick = (e: React.MouseEvent) => {
-    const el = (e.target as HTMLElement).closest('[data-sel]')
-    if (!el) return
+  /** 左侧表单交互 → 高亮右侧对应行并对齐到触发元素的视口位置 */
+  const selectFromForm = (target: HTMLElement) => {
+    const el = target.closest('[data-sel]')
+    if (!el) return false
     const sel = el.getAttribute('data-sel')
-    if (sel) {
-      selectionSource.current = 'form'
-      setSelection(sel)
-    }
+    if (!sel) return false
+    const rect = el.getBoundingClientRect()
+    selectionSource.current = 'form'
+    setSelection(sel)
+    setSelEvent((p) => ({ y: rect.top + Math.min(rect.height, 56) / 2, n: p.n + 1 }))
+    return true
   }
 
-  /** 输入项获得焦点 → 自动联动高亮右侧对应行（Tab 键盘导航同样生效） */
+  const handleFormClick = (e: React.MouseEvent) => {
+    selectFromForm(e.target as HTMLElement)
+  }
+
+  /** 输入项获得焦点 → 自动联动（Tab 键盘导航同样生效） */
   const handleFormFocus = (e: React.FocusEvent) => {
     const el = (e.target as HTMLElement).closest('[data-sel]')
-    if (!el) return
-    const sel = el.getAttribute('data-sel')
-    if (sel && sel !== selection) {
-      selectionSource.current = 'form'
-      setSelection(sel)
-    }
+    if (el?.getAttribute('data-sel') === selection) return
+    selectFromForm(e.target as HTMLElement)
   }
 
   /** 导入 OSI 规范文件（YAML / JSON） */
@@ -122,26 +127,46 @@ export function OsiConfigurator() {
     clear()
     if (!selection) return
 
+    /** 将元素锚点滚动到与触发源相同的视口纵坐标（源坐标不在本容器可视范围内则居中） */
+    const alignScroll = (el: Element) => {
+      const cRect = root.getBoundingClientRect()
+      const y =
+        selEvent.y !== null && selEvent.y >= cRect.top && selEvent.y <= cRect.bottom
+          ? selEvent.y
+          : cRect.top + cRect.height / 2
+      const rect = el.getBoundingClientRect()
+      const anchor = rect.top + Math.min(rect.height, 56) / 2
+      root.scrollTo({ top: root.scrollTop + anchor - y, behavior: 'smooth' })
+    }
+
     const highlight = (el: Element) => {
       clear()
       el.classList.add('sel-active')
-      if (selectionSource.current === 'preview') {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
+      if (selectionSource.current === 'preview') alignScroll(el)
     }
 
     const target = findSelTarget(root, selection)
     if (!target) return
-    // 通知折叠容器（如字段卡）展开自身
+    // 通知折叠容器（如字段卡）展开自身，事件冒泡覆盖所有祖先
     target.dispatchEvent(new Event('osi-reveal', { bubbles: true }))
     highlight(target)
-    // 展开渲染完成后重新精确定位到具体输入项
-    const timer = setTimeout(() => {
+    // 展开渲染是异步的：轮询重试，直到找到精确的输入项再重新对齐
+    let attempts = 0
+    const timer = setInterval(() => {
+      attempts++
       const precise = findSelTarget(root, selection)
-      if (precise && precise !== target) highlight(precise)
-    }, 80)
-    return () => clearTimeout(timer)
-  }, [selection, section, model])
+      if (precise && precise !== target) {
+        precise.dispatchEvent(new Event('osi-reveal', { bubbles: true }))
+        highlight(precise)
+        clearInterval(timer)
+      } else if (attempts >= 6) {
+        // 展开完成后目标仍是自身（如实体根卡片）：补一次对齐，修正展开导致的位移
+        if (precise && selectionSource.current === 'preview') alignScroll(precise)
+        clearInterval(timer)
+      }
+    }, 90)
+    return () => clearInterval(timer)
+  }, [selection, selEvent, section, model])
 
   const counts: Record<Section, number | null> = {
     model: null,
@@ -285,7 +310,12 @@ export function OsiConfigurator() {
 
         {/* 右侧规范预览 */}
         <aside className="min-h-64 shrink-0 border-t border-border lg:min-h-0 lg:w-[44%] lg:max-w-2xl lg:border-t-0 lg:border-l">
-          <SpecPreview model={model} selection={selection} onSelect={handlePreviewSelect} />
+          <SpecPreview
+            model={model}
+            selection={selection}
+            align={selEvent}
+            onSelect={handlePreviewSelect}
+          />
         </aside>
       </div>
     </div>

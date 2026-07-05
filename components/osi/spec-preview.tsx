@@ -108,11 +108,14 @@ function highlightJsonLine(line: string) {
 export function SpecPreview({
   model,
   selection,
+  align,
   onSelect,
 }: {
   model: OsiModel
   selection: SelKey | null
-  onSelect: (sel: SelKey | null, source: 'preview') => void
+  /** 选择事件元数据：y = 触发源视口纵坐标（位置对齐用），n = 单调递增（同一选择重复触发也重新滚动） */
+  align: { y: number | null; n: number }
+  onSelect: (sel: SelKey | null, y?: number) => void
 }) {
   const [format, setFormat] = useState<Format>('yaml')
   const [copied, setCopied] = useState(false)
@@ -127,19 +130,32 @@ export function SpecPreview({
   const content = useMemo(() => lines.map((l) => l.text).join('\n').concat('\n'), [lines])
   const validation = useMemo(() => validateModel(model), [model])
 
-  // 外部（左侧表单）选中时，滚动到对应行（精确优先，再按前缀匹配子属性行）
+  // 外部（左侧表单）选中时，滚动到对应行（精确优先，再按前缀匹配子属性行），
+  // 并把该行对齐到触发元素所在的视口纵坐标，实现左右位置对齐
   useEffect(() => {
     if (internalClick.current) {
       internalClick.current = false
       return
     }
-    if (!selection || !scrollRef.current) return
+    const container = scrollRef.current
+    if (!selection || !container) return
     let idx = lines.findIndex((l) => l.sel === selection)
     if (idx < 0) idx = lines.findIndex((l) => l.sel?.startsWith(`${selection}.`))
     if (idx < 0) return
-    const el = scrollRef.current.querySelector(`[data-line="${idx}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [selection, lines])
+    const el = container.querySelector(`[data-line="${idx}"]`)
+    if (!el) return
+    const cRect = container.getBoundingClientRect()
+    // 触发源纵坐标在本容器可视范围内 → 对齐到同一高度；否则（移动端上下布局）居中
+    const y =
+      align.y !== null && align.y >= cRect.top && align.y <= cRect.bottom
+        ? align.y
+        : cRect.top + cRect.height / 2
+    const rect = el.getBoundingClientRect()
+    container.scrollTo({
+      top: container.scrollTop + rect.top + rect.height / 2 - y,
+      behavior: 'smooth',
+    })
+  }, [selection, align, lines])
 
   const copy = async () => {
     await navigator.clipboard.writeText(content)
@@ -159,10 +175,11 @@ export function SpecPreview({
     URL.revokeObjectURL(url)
   }
 
-  const handleLineClick = (line: SpecLine) => {
+  const handleLineClick = (line: SpecLine, e: React.MouseEvent) => {
     if (!line.sel) return
     internalClick.current = true
-    onSelect(line.sel, 'preview')
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    onSelect(line.sel, rect.top + rect.height / 2)
   }
 
   return (
@@ -230,7 +247,7 @@ export function SpecPreview({
                 <div
                   key={i}
                   data-line={i}
-                  onClick={() => handleLineClick(line)}
+                  onClick={(e) => handleLineClick(line, e)}
                   className={`flex rounded-sm ${
                     active ? 'bg-primary/10' : line.sel ? 'hover:bg-accent/60' : ''
                   } ${line.sel ? 'cursor-pointer' : ''}`}
@@ -294,7 +311,7 @@ export function SpecPreview({
                 onClick={() => {
                   if (err.sel) {
                     internalClick.current = false
-                    onSelect(err.sel, 'preview')
+                    onSelect(err.sel)
                   }
                 }}
                 className="flex w-full items-start gap-2 px-4 py-1.5 text-left text-xs hover:bg-accent/50"
