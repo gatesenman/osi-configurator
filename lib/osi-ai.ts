@@ -218,7 +218,7 @@ export function buildMessages(mode: AiMode, instruction: string, currentYaml?: s
   const user =
     mode === 'generate'
       ? `请根据以下业务需求，从零生成一份完整的 OSI 语义模型 YAML：\n\n${instruction}`
-      : `以下是当前的 OSI 语义模型 YAML：\n\n\`\`\`yaml\n${currentYaml}\n\`\`\`\n\n请按以下要求调整（保留未提及的部分不变），输出调整后的完整 YAML：\n\n${instruction}`
+      : `以下是当前的 OSI 语义模型 YAML：\n\n\`\`\`yaml\n${currentYaml}\n\`\`\`\n\n请只做局部调整并输出调整后的完整 YAML。严格遵守：\n1. 只修改、新增或删除调整要求中明确提及的实体\n2. 未提及的实体必须逐字保留原样——不要重命名、不要改描述、不要增删 ai_context、不要调整顺序\n3. 应用侧会按实体名称做局部合并，任何多余改动都会被视为用户变更\n\n调整要求：\n\n${instruction}`
   return [
     { role: 'system', content: system },
     { role: 'user', content: user },

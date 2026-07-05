@@ -7,6 +7,7 @@ import { toYaml } from '@/lib/osi-serialize'
 import { importSpec } from '@/lib/osi-import'
 import type { AiMode, AiSettings } from '@/lib/osi-ai'
 import { AI_PROVIDERS, buildMessages, extractYaml, loadAiSettings, streamChatCompletion } from '@/lib/osi-ai'
+import { mergeModels, summaryParts } from '@/lib/osi-merge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -22,7 +23,8 @@ export function AiPanel({
   open: boolean
   model: OsiModel
   onClose: () => void
-  onApply: (m: OsiModel) => void
+  /** isAdjust=true 表示局部调整（调用方应保持当前视图状态） */
+  onApply: (m: OsiModel, isAdjust?: boolean) => void
   /** 跳转到系统设置的「模型提供商」分区 */
   onOpenSettings?: () => void
 }) {
@@ -87,11 +89,23 @@ export function AiPanel({
 
   const stop = () => abortRef.current?.abort()
 
+  /** 调整模式：预解析结果并计算局部变更摘要（应用前可确认改动范围） */
+  const adjustPreview = useMemo(() => {
+    if (phase !== 'done' || mode !== 'adjust' || !output) return null
+    const result = importSpec(extractYaml(output))
+    if (!result.ok || !result.models || result.models.length === 0) return null
+    return mergeModels(model, result.models[0])
+  }, [phase, mode, output, model])
+
   const apply = () => {
     const yaml = extractYaml(output)
     const result = importSpec(yaml)
     if (result.ok && result.models && result.models.length > 0) {
-      onApply(result.models[0])
+      // 调整模式：按名称局部合并——未变实体保留原引用与 id，只写入真正变化的部分
+      onApply(
+        mode === 'adjust' ? mergeModels(model, result.models[0]).merged : result.models[0],
+        mode === 'adjust',
+      )
       setPhase('idle')
       setOutput('')
       onClose()
@@ -207,6 +221,30 @@ export function AiPanel({
             <p role="alert" className="mt-3 text-xs leading-relaxed text-destructive">
               {error}
             </p>
+          ) : null}
+
+          {/* 调整模式：应用前展示局部变更摘要 */}
+          {adjustPreview ? (
+            adjustPreview.summary.hasChanges ? (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5 rounded-md border border-border bg-muted/40 px-3 py-2">
+                <span className="text-xs text-muted-foreground">局部变更：</span>
+                {summaryParts(adjustPreview.summary).map((part) => (
+                  <span
+                    key={part}
+                    className="rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-foreground"
+                  >
+                    {part}
+                  </span>
+                ))}
+                <span className="w-full text-[11px] leading-relaxed text-muted-foreground">
+                  +新增 ~修改 -删除；未提及的实体保持原样，不会被重建
+                </span>
+              </div>
+            ) : (
+              <p className="mt-3 text-xs text-muted-foreground">
+                模型返回的内容与当前模型一致，没有产生任何变更。
+              </p>
+            )
           ) : null}
         </div>
 

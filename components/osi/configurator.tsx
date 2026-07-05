@@ -462,10 +462,13 @@ export function OsiConfigurator() {
         open={aiOpen}
         model={model}
         onClose={() => setAiOpen(false)}
-        onApply={(m) => {
+        onApply={(m, isAdjust) => {
           setModel(m)
-          setSelection(null)
-          setSection('model')
+          // 局部调整：保持当前分区与浏览位置不变；生成新模型才重置视图
+          if (!isAdjust) {
+            setSelection(null)
+            setSection('model')
+          }
         }}
         onOpenSettings={() => {
           setSettingsTab('provider')
