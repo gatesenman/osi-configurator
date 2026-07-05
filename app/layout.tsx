@@ -9,7 +9,6 @@ const geistMono = Geist_Mono({ subsets: ['latin'], variable: '--font-geist-mono'
 export const metadata: Metadata = {
   title: 'OSI 配置器 — Open Semantic Interchange',
   description: '可视化构建 OSI（开放语义互操作）语义模型规范，实时生成标准 YAML / JSON 定义文件',
-  generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
