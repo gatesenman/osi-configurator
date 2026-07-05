@@ -34,8 +34,9 @@ export interface OsiDialectExpression {
 }
 
 /**
- * $defs/AIContext：oneOf [string, { instructions, synonyms, examples }]
- * enabled=false 时不输出 ai_context；mode 切换字符串 / 结构化两种官方形态
+ * $defs/AIContext：oneOf [string, { instructions, synonyms, examples, ... }]
+ * enabled=false 时不输出 ai_context；mode 切换字符串 / 结构化两种官方形态。
+ * 官方 Schema 结构化形态为 additionalProperties: true，extra 保存任意附加键。
  */
 export interface OsiAiContext {
   enabled: boolean
@@ -48,6 +49,8 @@ export interface OsiAiContext {
   synonyms: string[]
   /** 结构化形态：示例问题 / 用例 */
   examples: string[]
+  /** 结构化形态：任意附加键（JSON 对象字符串，'' 表示无；官方 additionalProperties: true） */
+  extra: string
 }
 
 /** $defs/CustomExtension：{ vendor_name, data }（data 为 JSON 字符串） */
@@ -152,5 +155,6 @@ export function emptyAiContext(): OsiAiContext {
     instructions: '',
     synonyms: [],
     examples: [],
+    extra: '',
   }
 }

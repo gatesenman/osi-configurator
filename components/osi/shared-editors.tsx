@@ -180,11 +180,50 @@ export function AiContextEditor({
                   onChange={(examples) => onChange({ ...value, examples })}
                 />
               </Field>
+              <AiContextExtraEditor value={value} onChange={onChange} />
             </>
           )}
         </>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * AIContext 任意附加键编辑器：官方结构化形态 additionalProperties: true，
+ * instructions / synonyms / examples 之外的任意键以 JSON 对象编辑。
+ */
+function AiContextExtraEditor({
+  value,
+  onChange,
+}: {
+  value: OsiAiContext
+  onChange: (next: OsiAiContext) => void
+}) {
+  let extraError: string | null = null
+  if (value.extra.trim()) {
+    try {
+      const parsed = JSON.parse(value.extra)
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        extraError = '必须是 JSON 对象（如 {"key": "value"}）'
+      } else if (['instructions', 'synonyms', 'examples'].some((k) => k in parsed)) {
+        extraError = '请勿包含 instructions / synonyms / examples（已有专属输入项）'
+      }
+    } catch {
+      extraError = '不是合法的 JSON'
+    }
+  }
+  return (
+    <Field label="附加键" hint="任意自定义键值对（官方 additionalProperties: true），留空则不输出">
+      <Textarea
+        value={value.extra}
+        onChange={(e) => onChange({ ...value, extra: e.target.value })}
+        className={`min-h-14 font-mono text-xs ${extraError ? 'border-destructive' : ''}`}
+        placeholder='{"domain": "sales", "sensitivity": "internal"}'
+        aria-label="ai_context 附加键（JSON 对象）"
+      />
+      {extraError ? <p className="text-xs text-destructive">{extraError}</p> : null}
+    </Field>
   )
 }
 

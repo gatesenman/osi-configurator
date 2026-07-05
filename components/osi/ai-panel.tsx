@@ -71,7 +71,7 @@ export function AiPanel({
       const messages = buildMessages(
         mode,
         instruction.trim(),
-        mode === 'adjust' ? toYaml(model) : undefined,
+        mode === 'adjust' ? toYaml([model]) : undefined,
       )
       await streamChatCompletion(settings, messages, (_d, full) => setOutput(full), controller.signal)
       setPhase('done')
@@ -90,8 +90,8 @@ export function AiPanel({
   const apply = () => {
     const yaml = extractYaml(output)
     const result = importSpec(yaml)
-    if (result.ok && result.model) {
-      onApply(result.model)
+    if (result.ok && result.models && result.models.length > 0) {
+      onApply(result.models[0])
       setPhase('idle')
       setOutput('')
       onClose()

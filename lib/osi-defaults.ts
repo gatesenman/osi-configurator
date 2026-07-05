@@ -1,5 +1,30 @@
 import type { OsiModel } from './osi-types'
-import { emptyAiContext } from './osi-types'
+import { emptyAiContext, uid } from './osi-types'
+
+/** 新建空白语义模型（含一个空数据集，满足 datasets minItems: 1） */
+export function emptyModel(name = 'new_semantic_model'): OsiModel {
+  return {
+    name,
+    description: '',
+    aiContext: emptyAiContext(),
+    datasets: [
+      {
+        id: uid(),
+        name: 'dataset_1',
+        source: '',
+        primaryKey: [],
+        uniqueKeys: [],
+        description: '',
+        aiContext: emptyAiContext(),
+        fields: [],
+        customExtensions: [],
+      },
+    ],
+    relationships: [],
+    metrics: [],
+    customExtensions: [],
+  }
+}
 
 /**
  * 示例语义模型：销售域（订单 + 客户）。
@@ -11,6 +36,7 @@ export const defaultModel: OsiModel = {
   description: '销售域语义模型：覆盖订单事实与客户维度，供 BI 与 AI 分析工具消费',
   aiContext: {
     enabled: true,
+    extra: '',
     mode: 'structured',
     text: '',
     instructions: '回答销售相关问题时优先使用本模型定义的指标口径，金额均为人民币。',
@@ -34,6 +60,7 @@ export const defaultModel: OsiModel = {
       description: '订单事实表，一行代表一笔订单',
       aiContext: {
         enabled: true,
+    extra: '',
         mode: 'text',
         text: '订单数据自 2020 年起完整，此前数据仅供参考。',
         instructions: '',
@@ -70,6 +97,7 @@ export const defaultModel: OsiModel = {
           description: '订单创建日期，时间维度',
           aiContext: {
             enabled: true,
+    extra: '',
             mode: 'structured',
             text: '',
             instructions: '默认按此字段做时间过滤与趋势分析',
@@ -97,6 +125,7 @@ export const defaultModel: OsiModel = {
           description: '订单总金额（元，不含税）',
           aiContext: {
             enabled: true,
+    extra: '',
             mode: 'structured',
             text: '',
             instructions: '',
@@ -146,6 +175,7 @@ export const defaultModel: OsiModel = {
           description: '客户所在大区：华东 / 华北 / 华南 / 西部',
           aiContext: {
             enabled: true,
+    extra: '',
             mode: 'structured',
             text: '',
             instructions: '',
@@ -167,6 +197,7 @@ export const defaultModel: OsiModel = {
       toColumns: ['customer_id'],
       aiContext: {
         enabled: true,
+    extra: '',
         mode: 'text',
         text: '每笔订单归属唯一客户（多对一）',
         instructions: '',
@@ -195,6 +226,7 @@ export const defaultModel: OsiModel = {
       description: '总销售额：已完成订单的金额合计（元）',
       aiContext: {
         enabled: true,
+    extra: '',
         mode: 'structured',
         text: '',
         instructions: '这是认证指标，销售额问题一律使用本指标',

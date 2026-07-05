@@ -26,13 +26,16 @@ function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []
 }
 
-/** $defs/AIContext：oneOf [string, { instructions, synonyms, examples }] */
+/** $defs/AIContext：oneOf [string, { instructions, synonyms, examples, ...任意附加键 }] */
 function importAiContext(v: unknown): OsiAiContext {
   if (typeof v === 'string') {
     return { ...emptyAiContext(), enabled: true, mode: 'text', text: v }
   }
   if (v !== null && typeof v === 'object') {
     const o = v as Record<string, unknown>
+    // 官方 additionalProperties: true——收集已知键之外的任意附加键，round-trip 不丢失
+    const KNOWN = new Set(['instructions', 'synonyms', 'examples'])
+    const extraEntries = Object.entries(o).filter(([k]) => !KNOWN.has(k))
     return {
       enabled: true,
       mode: 'structured',
@@ -40,6 +43,7 @@ function importAiContext(v: unknown): OsiAiContext {
       instructions: asString(o.instructions),
       synonyms: asStringArray(o.synonyms),
       examples: asStringArray(o.examples),
+      extra: extraEntries.length > 0 ? JSON.stringify(Object.fromEntries(extraEntries), null, 2) : '',
     }
   }
   return emptyAiContext()
@@ -124,34 +128,13 @@ function importDataset(v: Record<string, unknown>): OsiDataset {
 
 export interface ImportResult {
   ok: boolean
-  model?: OsiModel
+  /** 文件中的全部语义模型（官方 semantic_model 为数组，完整保留） */
+  models?: OsiModel[]
   error?: string
 }
 
-/** 解析 OSI 规范文本（YAML 或 JSON 均可，YAML 是 JSON 的超集） */
-export function importSpec(text: string): ImportResult {
-  let doc: unknown
-  try {
-    doc = parseYaml(text)
-  } catch (e) {
-    return { ok: false, error: `解析失败：${e instanceof Error ? e.message : String(e)}` }
-  }
-
-  if (doc === null || typeof doc !== 'object') {
-    return { ok: false, error: '文件内容不是有效的 OSI 规范对象' }
-  }
-
-  const root = doc as Record<string, unknown>
-  const models = root.semantic_model
-  if (!Array.isArray(models) || models.length === 0) {
-    return { ok: false, error: '缺少 semantic_model 数组（不是有效的 OSI 规范文件）' }
-  }
-  const sm = models[0]
-  if (sm === null || typeof sm !== 'object') {
-    return { ok: false, error: 'semantic_model[0] 不是有效对象' }
-  }
-  const m = sm as Record<string, unknown>
-
+/** 导入单个 semantic_model 数组元素 */
+function importSemanticModel(m: Record<string, unknown>): OsiModel {
   const datasets = Array.isArray(m.datasets)
     ? m.datasets
         .filter((d): d is Record<string, unknown> => d !== null && typeof d === 'object')
@@ -189,15 +172,40 @@ export function importSpec(text: string): ImportResult {
     : []
 
   return {
-    ok: true,
-    model: {
-      name: asString(m.name),
-      description: asString(m.description),
-      aiContext: importAiContext(m.ai_context),
-      datasets,
-      relationships,
-      metrics,
-      customExtensions: importCustomExtensions(m.custom_extensions),
-    },
+    name: asString(m.name),
+    description: asString(m.description),
+    aiContext: importAiContext(m.ai_context),
+    datasets,
+    relationships,
+    metrics,
+    customExtensions: importCustomExtensions(m.custom_extensions),
   }
+}
+
+/** 解析 OSI 规范文本（YAML 或 JSON 均可，YAML 是 JSON 的超集），完整保留多语义模型 */
+export function importSpec(text: string): ImportResult {
+  let doc: unknown
+  try {
+    doc = parseYaml(text)
+  } catch (e) {
+    return { ok: false, error: `解析失败：${e instanceof Error ? e.message : String(e)}` }
+  }
+
+  if (doc === null || typeof doc !== 'object') {
+    return { ok: false, error: '文件内容不是有效的 OSI 规范对象' }
+  }
+
+  const root = doc as Record<string, unknown>
+  const raw = root.semantic_model
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return { ok: false, error: '缺少 semantic_model 数组（不是有效的 OSI 规范文件）' }
+  }
+  const entries = raw.filter(
+    (sm): sm is Record<string, unknown> => sm !== null && typeof sm === 'object',
+  )
+  if (entries.length === 0) {
+    return { ok: false, error: 'semantic_model 中没有有效的模型对象' }
+  }
+
+  return { ok: true, models: entries.map(importSemanticModel) }
 }

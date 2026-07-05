@@ -21,13 +21,17 @@ export interface OsiValidationResult {
 const ajv = new Ajv2020({ allErrors: true, strict: false })
 const validateFn = ajv.compile(osiSchema)
 
-/** 将 Ajv 的 instancePath 映射为选择键 */
-function selForPath(path: string, model: OsiModel): SelKey | undefined {
+/** 将 Ajv 的 instancePath 映射为选择键（多模型：按 /semantic_model/<i> 找到对应模型） */
+function selForPath(path: string, models: OsiModel[], activeIdx: number): SelKey | undefined {
   const seg = path.split('/').filter(Boolean)
-  // /semantic_model/0/...
+  // /semantic_model/<i>/...
   if (seg[0] !== 'semantic_model') return 'model'
+  const modelIdx = Number.parseInt(seg[1] ?? '', 10)
+  const model = models[modelIdx]
+  if (!model) return undefined
   const rest = seg.slice(2)
-  if (rest.length === 0) return 'model'
+  // 非激活模型的根：无法定位到表单，返回 undefined（错误仍会显示路径）
+  if (rest.length === 0) return modelIdx === activeIdx ? 'model' : undefined
 
   const idx = (s: string | undefined) => (s !== undefined ? Number.parseInt(s, 10) : Number.NaN)
 
@@ -76,9 +80,9 @@ function formatError(err: ErrorObject): string {
   return err.message ?? '校验失败'
 }
 
-/** 使用官方 OSI JSON Schema (v0.2.0.dev0) 校验当前模型 */
-export function validateModel(model: OsiModel): OsiValidationResult {
-  const spec = buildSpec(model)
+/** 使用官方 OSI JSON Schema (v0.2.0.dev0) 校验完整文档（全部语义模型） */
+export function validateModel(models: OsiModel[], activeIdx = 0): OsiValidationResult {
+  const spec = buildSpec(models, activeIdx)
   const valid = validateFn(spec)
   if (valid) return { valid: true, errors: [] }
 
@@ -94,7 +98,7 @@ export function validateModel(model: OsiModel): OsiValidationResult {
     errors.push({
       path: e.instancePath || '/',
       message: formatError(e),
-      sel: selForPath(e.instancePath, model),
+      sel: selForPath(e.instancePath, models, activeIdx),
     })
   }
   return { valid: false, errors }

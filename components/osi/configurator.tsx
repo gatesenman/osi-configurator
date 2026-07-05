@@ -6,11 +6,13 @@ import {
   FileText,
   Hexagon,
   Link2,
+  Plus,
   RotateCcw,
   Settings,
   Sigma,
   Sparkles,
   Upload,
+  X,
 } from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey } from '@/lib/osi-serialize'
@@ -18,7 +20,7 @@ import { OSI_VERSION } from '@/lib/osi-serialize'
 import { importSpec } from '@/lib/osi-import'
 import type { AppSettings } from '@/lib/osi-settings'
 import { applyTheme, loadAppSettings, saveAppSettings } from '@/lib/osi-settings'
-import { defaultModel } from '@/lib/osi-defaults'
+import { defaultModel, emptyModel } from '@/lib/osi-defaults'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ModelInfoPanel } from './model-info-panel'
@@ -73,7 +75,14 @@ function findSelTarget(root: HTMLElement, sel: SelKey): Element | null {
 }
 
 export function OsiConfigurator() {
-  const [model, setModel] = useState<OsiModel>(defaultModel)
+  /** 官方 semantic_model 为数组：支持一个文件包含多个语义模型 */
+  const [models, setModels] = useState<OsiModel[]>([defaultModel])
+  const [activeIdx, setActiveIdx] = useState(0)
+  const model = models[activeIdx]
+  /** 更新当前激活的模型 */
+  const setModel = (m: OsiModel) => {
+    setModels((prev) => prev.map((x, i) => (i === activeIdx ? m : x)))
+  }
   const [section, setSection] = useState<Section>('model')
   const [selection, setSelection] = useState<SelKey | null>(null)
   /** 每次选择的事件元数据：y = 触发源在视口中的纵坐标（用于两侧位置对齐），n = 单调递增（同一实体重复点击也重新滚动） */
@@ -134,18 +143,43 @@ export function OsiConfigurator() {
     selectFromForm(e.target as HTMLElement)
   }
 
-  /** 导入 OSI 规范文件（YAML / JSON） */
+  /** 导入 OSI 规范文件（YAML / JSON）：完整保留文件中的全部语义模型 */
   const handleImportFile = async (file: File) => {
     const text = await file.text()
     const result = importSpec(text)
-    if (result.ok && result.model) {
-      setModel(result.model)
+    if (result.ok && result.models && result.models.length > 0) {
+      setModels(result.models)
+      setActiveIdx(0)
       setSelection(null)
       setSection('model')
       setImportError(null)
     } else {
       setImportError(result.error ?? '导入失败')
     }
+  }
+
+  /** 切换激活模型 */
+  const switchModel = (idx: number) => {
+    if (idx === activeIdx) return
+    setActiveIdx(idx)
+    setSelection(null)
+    setSection('model')
+  }
+
+  /** 新增空白模型并切换过去 */
+  const addModel = () => {
+    setModels((prev) => [...prev, emptyModel(`semantic_model_${prev.length + 1}`)])
+    setActiveIdx(models.length)
+    setSelection(null)
+    setSection('model')
+  }
+
+  /** 删除模型（至少保留一个） */
+  const removeModel = (idx: number) => {
+    if (models.length <= 1) return
+    setModels((prev) => prev.filter((_, i) => i !== idx))
+    setActiveIdx((prev) => (idx < prev ? prev - 1 : Math.min(prev, models.length - 2)))
+    setSelection(null)
   }
 
   // 选中变化时：高亮左侧表单对应输入项（字段级，逐级回退）；来自预览的选择需滚动定位
@@ -263,7 +297,8 @@ export function OsiConfigurator() {
             size="sm"
             className="h-8 gap-1.5 bg-transparent"
             onClick={() => {
-              setModel(defaultModel)
+              setModels([defaultModel])
+              setActiveIdx(0)
               setSelection(null)
             }}
           >
@@ -297,6 +332,57 @@ export function OsiConfigurator() {
           </button>
         </div>
       ) : null}
+
+      {/* 语义模型切换栏：官方 semantic_model 为数组，支持多模型 */}
+      <div
+        role="tablist"
+        aria-label="语义模型"
+        className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border bg-card px-4 py-1.5 md:px-6"
+      >
+        {models.map((m, i) => (
+          <div
+            key={i}
+            className={`group flex shrink-0 items-center rounded-md border text-xs transition-colors ${
+              i === activeIdx
+                ? 'border-primary/40 bg-primary/10 text-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-accent/50 hover:text-foreground'
+            }`}
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={i === activeIdx}
+              onClick={() => switchModel(i)}
+              className="max-w-48 truncate px-2.5 py-1 font-mono"
+              title={m.name || `模型 ${i + 1}`}
+            >
+              {m.name || `模型 ${i + 1}`}
+            </button>
+            {models.length > 1 ? (
+              <button
+                type="button"
+                onClick={() => removeModel(i)}
+                aria-label={`删除模型 ${m.name || i + 1}`}
+                className="mr-1 rounded p-0.5 text-muted-foreground/60 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
+              >
+                <X className="size-3" />
+              </button>
+            ) : null}
+          </div>
+        ))}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 shrink-0 gap-1 px-2 text-xs text-muted-foreground"
+          onClick={addModel}
+        >
+          <Plus className="size-3" />
+          新增模型
+        </Button>
+        <span className="ml-auto hidden shrink-0 font-mono text-[10px] text-muted-foreground/70 sm:inline">
+          semantic_model[{models.length}]
+        </span>
+      </div>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* 左侧导航 */}
@@ -361,7 +447,8 @@ export function OsiConfigurator() {
         {/* 右侧规范预览 */}
         <aside className="min-h-64 shrink-0 border-t border-border lg:min-h-0 lg:w-[44%] lg:max-w-2xl lg:border-t-0 lg:border-l">
           <SpecPreview
-            model={model}
+            models={models}
+            activeIdx={activeIdx}
             selection={selection}
             align={selEvent}
             defaultFormat={appSettings.previewFormat}

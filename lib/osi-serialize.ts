@@ -38,6 +38,19 @@ function aiContext(ctx: OsiAiContext): unknown {
     synonyms: ctx.synonyms.length > 0 ? ctx.synonyms : undefined,
     examples: ctx.examples.length > 0 ? ctx.examples : undefined,
   }
+  // 任意附加键（官方 additionalProperties: true）：合法 JSON 对象则展开合并
+  if (ctx.extra.trim()) {
+    try {
+      const parsed = JSON.parse(ctx.extra)
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        for (const [k, v] of Object.entries(parsed)) {
+          if (!(k in obj) || obj[k] === undefined) obj[k] = v
+        }
+      }
+    } catch {
+      // 非法 JSON 由校验层提示，这里忽略不输出
+    }
+  }
   const hasValue = Object.values(obj).some((v) => v !== undefined)
   return hasValue ? obj : undefined
 }
@@ -62,7 +75,7 @@ function expression(dialects: { dialect: string; expression: string }[]): unknow
 }
 
 /** $defs/Field：dimension 三态（none 不输出 / plain {} / time { is_time }） */
-function field(f: OsiField): Record<string, unknown> {
+function field(f: OsiField, tagged: boolean): Record<string, unknown> {
   let dimension: unknown
   switch (f.dimensionMode) {
     case 'plain':
@@ -77,34 +90,33 @@ function field(f: OsiField): Record<string, unknown> {
     default:
       dimension = undefined
   }
-  return tag(
-    {
-      name: f.name,
-      expression: expression(f.dialects),
-      dimension,
-      label: f.label || undefined,
-      description: f.description || undefined,
-      ai_context: aiContext(f.aiContext),
-      custom_extensions: customExtensions(f.customExtensions),
-    },
-    `field:${f.id}`,
-  )
+  const obj = {
+    name: f.name,
+    expression: expression(f.dialects),
+    dimension,
+    label: f.label || undefined,
+    description: f.description || undefined,
+    ai_context: aiContext(f.aiContext),
+    custom_extensions: customExtensions(f.customExtensions),
+  }
+  return tagged ? tag(obj, `field:${f.id}`) : obj
 }
 
 /**
- * 将编辑器模型转换为与官方 OSI 0.2.0.dev0 JSON Schema 1:1 对应的规范对象。
- * 仅输出官方 schema 定义的属性，无任何私有扩展。
+ * 将单个编辑器模型转换为 semantic_model 数组的一个元素。
+ * tagged=true 时打上选择键标记（仅当前激活模型可交互联动）。
  */
-export function toOsiSpec(model: OsiModel) {
+function semanticModelSpec(model: OsiModel, tagged: boolean) {
   const dsName = (id: string) => model.datasets.find((d) => d.id === id)?.name || id
+  const maybeTag = <T extends object>(obj: T, sel: SelKey): T => (tagged ? tag(obj, sel) : obj)
 
-  const semanticModel = tag(
+  return maybeTag(
     {
       name: model.name,
       description: model.description || undefined,
       ai_context: aiContext(model.aiContext),
       datasets: model.datasets.map((ds) =>
-        tag(
+        maybeTag(
           {
             name: ds.name,
             source: ds.source,
@@ -115,7 +127,7 @@ export function toOsiSpec(model: OsiModel) {
                 : undefined,
             description: ds.description || undefined,
             ai_context: aiContext(ds.aiContext),
-            fields: ds.fields.length > 0 ? ds.fields.map(field) : undefined,
+            fields: ds.fields.length > 0 ? ds.fields.map((f) => field(f, tagged)) : undefined,
             custom_extensions: customExtensions(ds.customExtensions),
           },
           `dataset:${ds.id}`,
@@ -124,7 +136,7 @@ export function toOsiSpec(model: OsiModel) {
       relationships:
         model.relationships.length > 0
           ? model.relationships.map((r) =>
-              tag(
+              maybeTag(
                 {
                   name: r.name,
                   from: dsName(r.fromDatasetId),
@@ -141,7 +153,7 @@ export function toOsiSpec(model: OsiModel) {
       metrics:
         model.metrics.length > 0
           ? model.metrics.map((m) =>
-              tag(
+              maybeTag(
                 {
                   name: m.name,
                   expression: expression(m.dialects),
@@ -157,11 +169,6 @@ export function toOsiSpec(model: OsiModel) {
     },
     'model',
   )
-
-  return {
-    version: OSI_VERSION,
-    semantic_model: [semanticModel],
-  }
 }
 
 /** 递归去除 undefined 值，同时保留选择键标记 */
@@ -185,9 +192,16 @@ function clean(value: unknown): unknown {
   return value
 }
 
-/** 构建清理后的规范对象（用于校验与序列化） */
-export function buildSpec(model: OsiModel): Record<string, unknown> {
-  return clean(toOsiSpec(model)) as Record<string, unknown>
+/**
+ * 构建完整规范文档：semantic_model 为多模型数组（官方顶层结构）。
+ * activeIdx 指定的模型带选择键标记（双向联动），其余模型仅序列化不联动。
+ */
+export function buildSpec(models: OsiModel[], activeIdx = 0): Record<string, unknown> {
+  const doc = {
+    version: OSI_VERSION,
+    semantic_model: models.map((m, i) => semanticModelSpec(m, i === activeIdx)),
+  }
+  return clean(doc) as Record<string, unknown>
 }
 
 /** 带选择键标记的输出行，用于双向高亮 */
@@ -304,27 +318,27 @@ function emitJson(
   return [{ text: `${pad}${keyPrefix}${JSON.stringify(value ?? null)}${comma}`, sel: own }]
 }
 
-export function toYamlLines(model: OsiModel): SpecLine[] {
+export function toYamlLines(models: OsiModel[], activeIdx = 0): SpecLine[] {
   return [
     { text: '# Open Semantic Interchange (OSI) Specification' },
     { text: `# Schema: osi-schema.json (v${OSI_VERSION})` },
-    ...emitYaml(buildSpec(model), 0),
+    ...emitYaml(buildSpec(models, activeIdx), 0),
   ]
 }
 
-export function toJsonLines(model: OsiModel): SpecLine[] {
-  return emitJson(buildSpec(model), 0, undefined, '', '')
+export function toJsonLines(models: OsiModel[], activeIdx = 0): SpecLine[] {
+  return emitJson(buildSpec(models, activeIdx), 0, undefined, '', '')
 }
 
-export function toYaml(model: OsiModel): string {
-  return toYamlLines(model)
+export function toYaml(models: OsiModel[], activeIdx = 0): string {
+  return toYamlLines(models, activeIdx)
     .map((l) => l.text)
     .join('\n')
     .concat('\n')
 }
 
-export function toJson(model: OsiModel): string {
-  return toJsonLines(model)
+export function toJson(models: OsiModel[], activeIdx = 0): string {
+  return toJsonLines(models, activeIdx)
     .map((l) => l.text)
     .join('\n')
     .concat('\n')

@@ -106,14 +106,18 @@ function highlightJsonLine(line: string) {
 }
 
 export function SpecPreview({
-  model,
+  models,
+  activeIdx,
   selection,
   align,
   defaultFormat = 'yaml',
   linkScroll = true,
   onSelect,
 }: {
-  model: OsiModel
+  /** 文档中的全部语义模型（官方 semantic_model 数组） */
+  models: OsiModel[]
+  /** 当前激活（可编辑联动）的模型下标 */
+  activeIdx: number
   selection: SelKey | null
   /** 选择事件元数据：y = 触发源视口纵坐标（位置对齐用），n = 单调递增（同一选择重复触发也重新滚动） */
   align: { y: number | null; n: number }
@@ -123,6 +127,7 @@ export function SpecPreview({
   linkScroll?: boolean
   onSelect: (sel: SelKey | null, y?: number) => void
 }) {
+  const model = models[activeIdx]
   const [format, setFormat] = useState<Format>(defaultFormat)
 
   // 系统设置里改了默认格式 → 同步切换（用户手动切换标签仍然优先生效）
@@ -135,11 +140,11 @@ export function SpecPreview({
   const internalClick = useRef(false)
 
   const lines: SpecLine[] = useMemo(
-    () => (format === 'yaml' ? toYamlLines(model) : toJsonLines(model)),
-    [model, format],
+    () => (format === 'yaml' ? toYamlLines(models, activeIdx) : toJsonLines(models, activeIdx)),
+    [models, activeIdx, format],
   )
   const content = useMemo(() => lines.map((l) => l.text).join('\n').concat('\n'), [lines])
-  const validation = useMemo(() => validateModel(model), [model])
+  const validation = useMemo(() => validateModel(models, activeIdx), [models, activeIdx])
 
   // 外部（左侧表单）选中时，滚动到对应行（精确优先，再按前缀匹配子属性行），
   // 并把该行对齐到触发元素所在的视口纵坐标，实现左右位置对齐
@@ -340,6 +345,7 @@ export function SpecPreview({
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
         <span>{lines.length} 行</span>
+        {models.length > 1 ? <span>{models.length} models</span> : null}
         <span>{model.datasets.length} datasets</span>
         <span>{model.datasets.reduce((n, d) => n + d.fields.length, 0)} fields</span>
         <span>{model.relationships.length} relationships</span>
