@@ -70,7 +70,7 @@ function RelationshipCard({
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
             <p className="text-xs font-medium text-muted-foreground">from（必填，多方）</p>
             <Field label="数据集">
-              <Select value={rel.fromDatasetId} onValueChange={(v) => set('fromDatasetId', v)}>
+              <Select value={rel.fromDatasetId ?? ''} onValueChange={(v) => set('fromDatasetId', v ?? '')}>
                 <SelectTrigger className="h-8 font-mono text-sm">
                   <SelectValue placeholder="选择数据集" />
                 </SelectTrigger>
@@ -95,7 +95,7 @@ function RelationshipCard({
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
             <p className="text-xs font-medium text-muted-foreground">to（必填，一方）</p>
             <Field label="数据集">
-              <Select value={rel.toDatasetId} onValueChange={(v) => set('toDatasetId', v)}>
+              <Select value={rel.toDatasetId ?? ''} onValueChange={(v) => set('toDatasetId', v ?? '')}>
                 <SelectTrigger className="h-8 font-mono text-sm">
                   <SelectValue placeholder="选择数据集" />
                 </SelectTrigger>

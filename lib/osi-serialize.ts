@@ -46,8 +46,8 @@ function aiContext(ctx: OsiAiContext): unknown {
 function customExtensions(exts: OsiCustomExtension[]): unknown {
   if (exts.length === 0) return undefined
   return exts.map((e) => ({
-    vendor_name: e.vendorName || 'COMMON',
-    data: e.data || '{}',
+    vendor_name: e.vendorName,
+    data: e.data,
   }))
 }
 
@@ -56,7 +56,7 @@ function expression(dialects: { dialect: string; expression: string }[]): unknow
   return {
     dialects: dialects.map((d) => ({
       dialect: d.dialect,
-      expression: d.expression || 'NULL',
+      expression: d.expression,
     })),
   }
 }
@@ -79,7 +79,7 @@ function field(f: OsiField): Record<string, unknown> {
   }
   return tag(
     {
-      name: f.name || 'untitled_field',
+      name: f.name,
       expression: expression(f.dialects),
       dimension,
       label: f.label || undefined,
@@ -100,14 +100,14 @@ export function toOsiSpec(model: OsiModel) {
 
   const semanticModel = tag(
     {
-      name: model.name || 'untitled_model',
+      name: model.name,
       description: model.description || undefined,
       ai_context: aiContext(model.aiContext),
       datasets: model.datasets.map((ds) =>
         tag(
           {
-            name: ds.name || 'untitled_dataset',
-            source: ds.source || 'undefined_source',
+            name: ds.name,
+            source: ds.source,
             primary_key: ds.primaryKey.length > 0 ? ds.primaryKey : undefined,
             unique_keys:
               ds.uniqueKeys.length > 0
@@ -126,11 +126,11 @@ export function toOsiSpec(model: OsiModel) {
           ? model.relationships.map((r) =>
               tag(
                 {
-                  name: r.name || 'untitled_relationship',
+                  name: r.name,
                   from: dsName(r.fromDatasetId),
                   to: dsName(r.toDatasetId),
-                  from_columns: r.fromColumns.length > 0 ? r.fromColumns : ['unknown_column'],
-                  to_columns: r.toColumns.length > 0 ? r.toColumns : ['unknown_column'],
+                  from_columns: r.fromColumns,
+                  to_columns: r.toColumns,
                   ai_context: aiContext(r.aiContext),
                   custom_extensions: customExtensions(r.customExtensions),
                 },
@@ -143,7 +143,7 @@ export function toOsiSpec(model: OsiModel) {
           ? model.metrics.map((m) =>
               tag(
                 {
-                  name: m.name || 'untitled_metric',
+                  name: m.name,
                   expression: expression(m.dialects),
                   description: m.description || undefined,
                   ai_context: aiContext(m.aiContext),
