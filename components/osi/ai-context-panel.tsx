@@ -21,7 +21,7 @@ function GlossaryCard({
     onChange({ ...term, [key]: value })
 
   return (
-    <div className="rounded-md border border-border bg-card p-4">
+    <div className="rounded-md border border-border bg-card p-4" data-sel={`glossary:${term.id}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-2">
           <Field label="术语 / Term">
@@ -83,7 +83,7 @@ export function AiContextPanel({
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2 rounded-lg" data-sel="ai">
         <div className="flex items-center gap-2">
           <Sparkles className="size-4 text-primary" />
           <p className="text-xs font-medium text-muted-foreground">

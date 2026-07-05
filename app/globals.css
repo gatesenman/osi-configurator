@@ -101,3 +101,12 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 双向高亮：左侧表单实体卡片选中态 */
+[data-sel] {
+  scroll-margin: 5rem;
+}
+.sel-active {
+  box-shadow: 0 0 0 2px var(--ring);
+  transition: box-shadow 0.2s ease;
+}

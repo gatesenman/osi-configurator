@@ -1,27 +1,34 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { Check, Copy, Download, FileCode2 } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  CircleAlert,
+  CircleCheck,
+  Copy,
+  Download,
+  FileCode2,
+} from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
-import { toJson, toYaml } from '@/lib/osi-serialize'
+import type { SelKey, SpecLine } from '@/lib/osi-serialize'
+import { OSI_VERSION, toJsonLines, toYamlLines } from '@/lib/osi-serialize'
+import { validateModel } from '@/lib/osi-validate'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
 type Format = 'yaml' | 'json'
 
-function highlightYamlLine(line: string, key: number) {
+function highlightYamlLine(line: string) {
   if (line.trimStart().startsWith('#')) {
-    return (
-      <span key={key} className="text-syntax-comment">
-        {line}
-      </span>
-    )
+    return <span className="text-syntax-comment">{line}</span>
   }
   const m = line.match(/^(\s*(?:- )?)([\w.-]+)(:)(.*)$/)
   if (m) {
     const [, prefix, k, colon, rest] = m
     return (
-      <span key={key}>
+      <span>
         {prefix}
         <span className="text-syntax-key">{k}</span>
         {colon}
@@ -32,28 +39,20 @@ function highlightYamlLine(line: string, key: number) {
   const listItem = line.match(/^(\s*- )(.*)$/)
   if (listItem) {
     return (
-      <span key={key}>
+      <span>
         {listItem[1]}
         {renderYamlValue(listItem[2])}
       </span>
     )
   }
-  return <span key={key}>{line}</span>
+  return <span>{line}</span>
 }
 
 function renderYamlValue(raw: string) {
   const v = raw.trimStart()
   const pad = raw.slice(0, raw.length - v.length)
   if (v === '') return raw
-  if (/^(true|false|null)$/.test(v)) {
-    return (
-      <>
-        {pad}
-        <span className="text-syntax-number">{v}</span>
-      </>
-    )
-  }
-  if (/^-?\d+(\.\d+)?$/.test(v)) {
+  if (/^(true|false|null)$/.test(v) || /^-?\d+(\.\d+)?$/.test(v)) {
     return (
       <>
         {pad}
@@ -69,7 +68,7 @@ function renderYamlValue(raw: string) {
   )
 }
 
-function highlightJsonLine(line: string, key: number) {
+function highlightJsonLine(line: string) {
   const parts: React.ReactNode[] = []
   const regex = /("(?:[^"\\]|\\.)*")(\s*:)?|(-?\d+(?:\.\d+)?)|(true|false|null)/g
   let last = 0
@@ -103,17 +102,43 @@ function highlightJsonLine(line: string, key: number) {
     i++
   }
   if (last < line.length) parts.push(line.slice(last))
-  return <span key={key}>{parts}</span>
+  return <span>{parts}</span>
 }
 
-export function SpecPreview({ model }: { model: OsiModel }) {
+export function SpecPreview({
+  model,
+  selection,
+  onSelect,
+}: {
+  model: OsiModel
+  selection: SelKey | null
+  onSelect: (sel: SelKey | null, source: 'preview') => void
+}) {
   const [format, setFormat] = useState<Format>('yaml')
   const [copied, setCopied] = useState(false)
+  const [showErrors, setShowErrors] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const internalClick = useRef(false)
 
-  const yaml = useMemo(() => toYaml(model), [model])
-  const json = useMemo(() => toJson(model), [model])
-  const content = format === 'yaml' ? yaml : json
-  const lines = useMemo(() => content.replace(/\n$/, '').split('\n'), [content])
+  const lines: SpecLine[] = useMemo(
+    () => (format === 'yaml' ? toYamlLines(model) : toJsonLines(model)),
+    [model, format],
+  )
+  const content = useMemo(() => lines.map((l) => l.text).join('\n').concat('\n'), [lines])
+  const validation = useMemo(() => validateModel(model), [model])
+
+  // 外部（左侧表单）选中时，滚动到对应行
+  useEffect(() => {
+    if (internalClick.current) {
+      internalClick.current = false
+      return
+    }
+    if (!selection || !scrollRef.current) return
+    const idx = lines.findIndex((l) => l.sel === selection)
+    if (idx < 0) return
+    const el = scrollRef.current.querySelector(`[data-line="${idx}"]`)
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }, [selection, lines])
 
   const copy = async () => {
     await navigator.clipboard.writeText(content)
@@ -131,6 +156,12 @@ export function SpecPreview({ model }: { model: OsiModel }) {
     a.download = `${model.info.name || 'osi-model'}.osi.${format === 'yaml' ? 'yaml' : 'json'}`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  const handleLineClick = (line: SpecLine) => {
+    if (!line.sel) return
+    internalClick.current = true
+    onSelect(line.sel, 'preview')
   }
 
   return (
@@ -185,21 +216,93 @@ export function SpecPreview({ model }: { model: OsiModel }) {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
         <pre className="p-4 font-mono text-xs leading-relaxed">
           <code>
-            {lines.map((line, i) => (
-              <div key={i} className="flex">
-                <span className="w-8 shrink-0 select-none pr-3 text-right text-syntax-comment/60">
-                  {i + 1}
-                </span>
-                <span className="whitespace-pre">
-                  {format === 'yaml' ? highlightYamlLine(line, i) : highlightJsonLine(line, i)}
-                </span>
-              </div>
-            ))}
+            {lines.map((line, i) => {
+              const active = line.sel !== undefined && line.sel === selection
+              return (
+                <div
+                  key={i}
+                  data-line={i}
+                  onClick={() => handleLineClick(line)}
+                  className={`flex rounded-sm ${
+                    active ? 'bg-primary/10' : line.sel ? 'hover:bg-accent/60' : ''
+                  } ${line.sel ? 'cursor-pointer' : ''}`}
+                  title={line.sel ? '点击定位到左侧配置' : undefined}
+                >
+                  <span
+                    className={`w-8 shrink-0 select-none pr-3 text-right ${
+                      active ? 'text-primary' : 'text-syntax-comment/60'
+                    }`}
+                  >
+                    {i + 1}
+                  </span>
+                  <span className="whitespace-pre">
+                    {format === 'yaml'
+                      ? highlightYamlLine(line.text)
+                      : highlightJsonLine(line.text)}
+                  </span>
+                </div>
+              )
+            })}
           </code>
         </pre>
+      </div>
+
+      {/* Schema 校验状态 */}
+      <div className="border-t border-border">
+        <button
+          type="button"
+          onClick={() => setShowErrors(!showErrors)}
+          disabled={validation.valid}
+          className={`flex w-full items-center gap-2 px-4 py-2 text-left text-xs ${
+            validation.valid ? 'cursor-default text-success' : 'text-destructive hover:bg-accent/50'
+          }`}
+          aria-expanded={!validation.valid && showErrors}
+        >
+          {validation.valid ? (
+            <>
+              <CircleCheck className="size-3.5 shrink-0" />
+              <span>官方 JSON Schema 校验通过</span>
+              <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+                osi-schema.json · v{OSI_VERSION}
+              </span>
+            </>
+          ) : (
+            <>
+              <CircleAlert className="size-3.5 shrink-0" />
+              <span>{validation.errors.length} 处 Schema 校验错误</span>
+              <span className="ml-auto flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
+                osi-schema.json · v{OSI_VERSION}
+                {showErrors ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
+              </span>
+            </>
+          )}
+        </button>
+        {!validation.valid && showErrors ? (
+          <div className="max-h-40 overflow-y-auto border-t border-border">
+            {validation.errors.map((err, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => {
+                  if (err.sel) {
+                    internalClick.current = false
+                    onSelect(err.sel, 'preview')
+                  }
+                }}
+                className="flex w-full items-start gap-2 px-4 py-1.5 text-left text-xs hover:bg-accent/50"
+              >
+                <CircleAlert className="mt-0.5 size-3 shrink-0 text-destructive" />
+                <span className="min-w-0">
+                  <span className="font-mono text-[10px] text-muted-foreground">{err.path}</span>
+                  <span className="block text-foreground">{err.message}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">

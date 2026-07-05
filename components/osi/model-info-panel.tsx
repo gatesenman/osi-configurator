@@ -17,7 +17,7 @@ export function ModelInfoPanel({
     onChange({ ...info, [key]: value })
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 rounded-lg" data-sel="info">
       <div>
         <h2 className="text-sm font-medium">语义模型信息</h2>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">

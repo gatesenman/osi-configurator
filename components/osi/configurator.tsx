@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   BadgeCheck,
   Database,
@@ -13,6 +13,8 @@ import {
   Sparkles,
 } from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
+import type { SelKey } from '@/lib/osi-serialize'
+import { OSI_VERSION } from '@/lib/osi-serialize'
 import { defaultModel } from '@/lib/osi-defaults'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,9 +46,69 @@ const SECTIONS: { id: Section; label: string; icon: typeof FileText }[] = [
   { id: 'ai', label: 'AI 上下文', icon: Sparkles },
 ]
 
+/** 选择键前缀 → 配置分区 */
+function sectionForSel(sel: SelKey): Section {
+  if (sel === 'info') return 'info'
+  if (sel === 'ai') return 'ai'
+  const prefix = sel.split(':')[0]
+  switch (prefix) {
+    case 'dataset':
+      return 'datasets'
+    case 'metric':
+      return 'metrics'
+    case 'relationship':
+      return 'relationships'
+    case 'filter':
+      return 'filters'
+    case 'query':
+      return 'queries'
+    case 'glossary':
+      return 'ai'
+    default:
+      return 'info'
+  }
+}
+
 export function OsiConfigurator() {
   const [model, setModel] = useState<OsiModel>(defaultModel)
   const [section, setSection] = useState<Section>('info')
+  const [selection, setSelection] = useState<SelKey | null>(null)
+  const mainRef = useRef<HTMLElement>(null)
+  const selectionSource = useRef<'form' | 'preview'>('form')
+
+  /** 从右侧预览（YAML/JSON 行或校验错误）选中实体 → 切换分区并定位表单 */
+  const handlePreviewSelect = (sel: SelKey | null) => {
+    selectionSource.current = 'preview'
+    setSelection(sel)
+    if (sel) setSection(sectionForSel(sel))
+  }
+
+  /** 左侧表单点击实体卡片 → 高亮右侧对应 YAML/JSON 行 */
+  const handleFormClick = (e: React.MouseEvent) => {
+    const el = (e.target as HTMLElement).closest('[data-sel]')
+    if (!el) return
+    const sel = el.getAttribute('data-sel')
+    if (sel) {
+      selectionSource.current = 'form'
+      setSelection(sel)
+    }
+  }
+
+  // 选中变化时：高亮左侧表单对应卡片；来自预览的选择需滚动定位
+  useEffect(() => {
+    const root = mainRef.current
+    if (!root) return
+    for (const el of root.querySelectorAll('.sel-active')) {
+      el.classList.remove('sel-active')
+    }
+    if (!selection) return
+    const target = root.querySelector(`[data-sel="${CSS.escape(selection)}"]`)
+    if (!target) return
+    target.classList.add('sel-active')
+    if (selectionSource.current === 'preview') {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [selection, section, model])
 
   const counts: Record<Section, number | null> = {
     info: null,
@@ -72,14 +134,17 @@ export function OsiConfigurator() {
             </p>
           </div>
           <Badge variant="outline" className="hidden font-mono text-[10px] text-muted-foreground sm:inline-flex">
-            spec v0.1
+            spec v{OSI_VERSION}
           </Badge>
         </div>
         <Button
           variant="outline"
           size="sm"
           className="h-8 gap-1.5 bg-transparent"
-          onClick={() => setModel(defaultModel)}
+          onClick={() => {
+            setModel(defaultModel)
+            setSelection(null)
+          }}
         >
           <RotateCcw className="size-3.5" />
           <span className="hidden sm:inline">重置示例</span>
@@ -116,7 +181,11 @@ export function OsiConfigurator() {
         </nav>
 
         {/* 中间配置区 */}
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 lg:min-w-0">
+        <main
+          ref={mainRef}
+          onClickCapture={handleFormClick}
+          className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 lg:min-w-0"
+        >
           <div className="mx-auto max-w-2xl">
             {section === 'info' ? (
               <ModelInfoPanel
@@ -175,7 +244,7 @@ export function OsiConfigurator() {
           aria-label="规范预览"
           className="h-96 shrink-0 border-t border-border lg:h-auto lg:w-[42%] lg:max-w-2xl lg:border-l lg:border-t-0"
         >
-          <SpecPreview model={model} />
+          <SpecPreview model={model} selection={selection} onSelect={handlePreviewSelect} />
         </aside>
       </div>
     </div>

@@ -417,7 +417,7 @@ function DatasetCard({
   const [sqlMode, setSqlMode] = useState(useSql)
 
   return (
-    <div className="rounded-lg border border-border bg-card">
+    <div className="rounded-lg border border-border bg-card" data-sel={`dataset:${dataset.id}`}>
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
           <Database className="size-4 shrink-0 text-primary" />
