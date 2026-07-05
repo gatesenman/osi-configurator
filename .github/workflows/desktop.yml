@@ -42,9 +42,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build desktop app
-        run: pnpm desktop:build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # --publish never：禁用 electron-builder 自动发布（Release 由下方 release 任务统一创建）
+        run: pnpm desktop:build --publish never
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
