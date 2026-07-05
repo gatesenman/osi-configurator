@@ -235,21 +235,23 @@ function emitYaml(value: unknown, indent: number, sel?: SelKey): SpecLine[] {
     if (entries.length === 0) return [{ text: `${pad}{}`, sel: own }]
     const out: SpecLine[] = []
     for (const [k, v] of entries) {
+      // 字段级选择键：子属性自动派生 `<父键>.<属性名>`
+      const propSel = own ? `${own}.${k}` : undefined
       if (typeof v === 'string' && v.includes('\n')) {
-        out.push({ text: `${pad}${k}: |-`, sel: own })
+        out.push({ text: `${pad}${k}: |-`, sel: propSel })
         for (const line of v.split('\n')) {
-          out.push({ text: `${pad}  ${line}`, sel: own })
+          out.push({ text: `${pad}  ${line}`, sel: propSel })
         }
       } else if (v !== null && typeof v === 'object') {
-        const childSel = getSel(v) ?? own
+        const childSel = getSel(v) ?? propSel
         if (Array.isArray(v) && v.length === 0) {
           out.push({ text: `${pad}${k}: []`, sel: childSel })
           continue
         }
         out.push({ text: `${pad}${k}:`, sel: childSel })
-        out.push(...emitYaml(v, indent + 1, own))
+        out.push(...emitYaml(v, indent + 1, childSel))
       } else {
-        out.push({ text: `${pad}${k}: ${yamlScalar(v)}`, sel: own })
+        out.push({ text: `${pad}${k}: ${yamlScalar(v)}`, sel: propSel })
       }
     }
     return out
@@ -283,11 +285,13 @@ function emitJson(
     if (entries.length === 0) return [{ text: `${pad}${keyPrefix}{}${comma}`, sel: own }]
     const out: SpecLine[] = [{ text: `${pad}${keyPrefix}{`, sel: own }]
     entries.forEach(([k, v], i) => {
+      // 字段级选择键：子属性自动派生 `<父键>.<属性名>`
+      const propSel = getSel(v) ?? (own ? `${own}.${k}` : undefined)
       out.push(
         ...emitJson(
           v,
           indent + 1,
-          own,
+          propSel,
           `${JSON.stringify(k)}: `,
           i < entries.length - 1 ? ',' : '',
         ),

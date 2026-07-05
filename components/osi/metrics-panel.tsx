@@ -51,7 +51,7 @@ function MetricCard({
       </div>
 
       <div className="flex flex-col gap-4 p-4">
-        <Field label="name（必填）" hint="指标唯一标识">
+        <Field label="name（必填）" hint="指标唯一标识" sel={`metric:${metric.id}.name`}>
           <Input
             value={metric.name}
             onChange={(e) => set('name', e.target.value)}
@@ -60,7 +60,11 @@ function MetricCard({
           />
         </Field>
 
-        <Field label="expression（必填）" hint="完整聚合表达式，如 SUM(order_amount)">
+        <Field
+          label="expression（必填）"
+          hint="完整聚合表达式，如 SUM(order_amount)"
+          sel={`metric:${metric.id}.expression`}
+        >
           <DialectExpressionsEditor
             value={metric.dialects}
             onChange={(dialects) => set('dialects', dialects)}
@@ -68,7 +72,11 @@ function MetricCard({
           />
         </Field>
 
-        <Field label="description" hint="指标度量内容的业务描述">
+        <Field
+          label="description"
+          hint="指标度量内容的业务描述"
+          sel={`metric:${metric.id}.description`}
+        >
           <Input
             value={metric.description}
             onChange={(e) => set('description', e.target.value)}
@@ -77,10 +85,15 @@ function MetricCard({
           />
         </Field>
 
-        <AiContextEditor value={metric.aiContext} onChange={(v) => set('aiContext', v)} />
+        <AiContextEditor
+          value={metric.aiContext}
+          onChange={(v) => set('aiContext', v)}
+          sel={`metric:${metric.id}`}
+        />
         <CustomExtensionsEditor
           value={metric.customExtensions}
           onChange={(v) => set('customExtensions', v)}
+          sel={`metric:${metric.id}`}
         />
       </div>
     </div>
@@ -108,7 +121,7 @@ export function MetricsPanel({
     ])
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-sel="model.metrics">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-medium">指标 / Metrics</h2>

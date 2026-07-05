@@ -26,7 +26,7 @@ export function ModelInfoPanel({
         </p>
       </div>
 
-      <Field label="name（必填）" hint="模型唯一标识，建议使用 snake_case">
+      <Field label="name（必填）" hint="模型唯一标识，建议使用 snake_case" sel="model.name">
         <Input
           value={model.name}
           onChange={(e) => onChange({ ...model, name: e.target.value })}
@@ -35,7 +35,7 @@ export function ModelInfoPanel({
         />
       </Field>
 
-      <Field label="description" hint="模型覆盖的业务范围与用途">
+      <Field label="description" hint="模型覆盖的业务范围与用途" sel="model.description">
         <Textarea
           value={model.description}
           onChange={(e) => onChange({ ...model, description: e.target.value })}
@@ -47,10 +47,12 @@ export function ModelInfoPanel({
       <AiContextEditor
         value={model.aiContext}
         onChange={(aiContext) => onChange({ ...model, aiContext })}
+        sel="model"
       />
       <CustomExtensionsEditor
         value={model.customExtensions}
         onChange={(customExtensions) => onChange({ ...model, customExtensions })}
+        sel="model"
       />
     </div>
   )

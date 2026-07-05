@@ -99,12 +99,18 @@ export function DialectExpressionsEditor({
 export function AiContextEditor({
   value,
   onChange,
+  sel,
 }: {
   value: OsiAiContext
   onChange: (next: OsiAiContext) => void
+  /** 选择键基础（如 dataset:d1），锚点为 <sel>.ai_context */
+  sel?: string
 }) {
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
+    <div
+      className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
+      data-sel={sel ? `${sel}.ai_context` : undefined}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm">ai_context</p>
@@ -188,15 +194,21 @@ export function AiContextEditor({
 export function CustomExtensionsEditor({
   value,
   onChange,
+  sel,
 }: {
   value: OsiCustomExtension[]
   onChange: (next: OsiCustomExtension[]) => void
+  /** 选择键基础（如 dataset:d1），锚点为 <sel>.custom_extensions */
+  sel?: string
 }) {
   const update = (id: string, patch: Partial<OsiCustomExtension>) =>
     onChange(value.map((e) => (e.id === id ? { ...e, ...patch } : e)))
 
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
+    <div
+      className="flex flex-col gap-3 rounded-md border border-border bg-background p-3"
+      data-sel={sel ? `${sel}.custom_extensions` : undefined}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm">custom_extensions</p>

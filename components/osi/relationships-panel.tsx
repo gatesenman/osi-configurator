@@ -57,7 +57,7 @@ function RelationshipCard({
       </div>
 
       <div className="flex flex-col gap-4 p-4">
-        <Field label="name（必填）" hint="关系唯一标识">
+        <Field label="name（必填）" hint="关系唯一标识" sel={`relationship:${rel.id}.name`}>
           <Input
             value={rel.name}
             onChange={(e) => set('name', e.target.value)}
@@ -69,7 +69,7 @@ function RelationshipCard({
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
             <p className="text-xs font-medium text-muted-foreground">from（必填，多方）</p>
-            <Field label="数据集">
+            <Field label="数据集" sel={`relationship:${rel.id}.from`}>
               <Select value={rel.fromDatasetId ?? ''} onValueChange={(v) => set('fromDatasetId', v ?? '')}>
                 <SelectTrigger className="h-8 font-mono text-sm">
                   <SelectValue placeholder="选择数据集" />
@@ -83,7 +83,11 @@ function RelationshipCard({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="from_columns（必填）" hint="外键列，多列为复合键">
+            <Field
+              label="from_columns（必填）"
+              hint="外键列，多列为复合键"
+              sel={`relationship:${rel.id}.from_columns`}
+            >
               <TagInput
                 value={rel.fromColumns}
                 onChange={(v) => set('fromColumns', v)}
@@ -94,7 +98,7 @@ function RelationshipCard({
 
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
             <p className="text-xs font-medium text-muted-foreground">to（必填，一方）</p>
-            <Field label="数据集">
+            <Field label="数据集" sel={`relationship:${rel.id}.to`}>
               <Select value={rel.toDatasetId ?? ''} onValueChange={(v) => set('toDatasetId', v ?? '')}>
                 <SelectTrigger className="h-8 font-mono text-sm">
                   <SelectValue placeholder="选择数据集" />
@@ -108,7 +112,11 @@ function RelationshipCard({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="to_columns（必填）" hint="主/唯一键列，多列为复合键">
+            <Field
+              label="to_columns（必填）"
+              hint="主/唯一键列，多列为复合键"
+              sel={`relationship:${rel.id}.to_columns`}
+            >
               <TagInput
                 value={rel.toColumns}
                 onChange={(v) => set('toColumns', v)}
@@ -118,10 +126,15 @@ function RelationshipCard({
           </div>
         </div>
 
-        <AiContextEditor value={rel.aiContext} onChange={(v) => set('aiContext', v)} />
+        <AiContextEditor
+          value={rel.aiContext}
+          onChange={(v) => set('aiContext', v)}
+          sel={`relationship:${rel.id}`}
+        />
         <CustomExtensionsEditor
           value={rel.customExtensions}
           onChange={(v) => set('customExtensions', v)}
+          sel={`relationship:${rel.id}`}
         />
       </div>
     </div>
@@ -153,7 +166,7 @@ export function RelationshipsPanel({
     ])
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-sel="model.relationships">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-sm font-medium">关系 / Relationships</h2>

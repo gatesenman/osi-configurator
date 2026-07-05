@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronRight, Columns3, Database, Plus, Trash2 } from 'lucide-react'
 import type { DimensionMode, OsiDataset, OsiField, OsiUniqueKey } from '@/lib/osi-types'
 import { emptyAiContext, uid } from '@/lib/osi-types'
@@ -38,11 +38,25 @@ function FieldCard({
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
   const set = <K extends keyof OsiField>(key: K, value: OsiField[K]) =>
     onChange({ ...field, [key]: value })
 
+  // 来自右侧预览的字段级定位：自动展开折叠的字段卡
+  useEffect(() => {
+    const el = rootRef.current
+    if (!el) return
+    const onReveal = () => setOpen(true)
+    el.addEventListener('osi-reveal', onReveal)
+    return () => el.removeEventListener('osi-reveal', onReveal)
+  }, [])
+
   return (
-    <div className="rounded-md border border-border bg-background" data-sel={`field:${field.id}`}>
+    <div
+      ref={rootRef}
+      className="rounded-md border border-border bg-background"
+      data-sel={`field:${field.id}`}
+    >
       <div className="flex items-center gap-2 px-3 py-2">
         <button
           type="button"
@@ -89,7 +103,7 @@ function FieldCard({
       {open ? (
         <div className="flex flex-col gap-3 border-t border-border px-3 py-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="name（必填）" hint="字段在数据集内的唯一标识">
+            <Field label="name（必填）" hint="字段在数据集内的唯一标识" sel={`field:${field.id}.name`}>
               <Input
                 value={field.name}
                 onChange={(e) => set('name', e.target.value)}
@@ -97,7 +111,7 @@ function FieldCard({
                 placeholder="order_date"
               />
             </Field>
-            <Field label="label" hint="分类用标签">
+            <Field label="label" hint="分类用标签" sel={`field:${field.id}.label`}>
               <Input
                 value={field.label}
                 onChange={(e) => set('label', e.target.value)}
@@ -107,7 +121,7 @@ function FieldCard({
             </Field>
           </div>
 
-          <Field label="expression（必填）">
+          <Field label="expression（必填）" sel={`field:${field.id}.expression`}>
             <DialectExpressionsEditor
               value={field.dialects}
               onChange={(dialects) => set('dialects', dialects)}
@@ -118,6 +132,7 @@ function FieldCard({
           <Field
             label="dimension"
             hint={DIMENSION_MODES.find((m) => m.value === field.dimensionMode)?.hint}
+            sel={`field:${field.id}.dimension`}
           >
             <Select
               value={field.dimensionMode}
@@ -136,7 +151,7 @@ function FieldCard({
             </Select>
           </Field>
 
-          <Field label="description">
+          <Field label="description" sel={`field:${field.id}.description`}>
             <Input
               value={field.description}
               onChange={(e) => set('description', e.target.value)}
@@ -145,10 +160,15 @@ function FieldCard({
             />
           </Field>
 
-          <AiContextEditor value={field.aiContext} onChange={(v) => set('aiContext', v)} />
+          <AiContextEditor
+            value={field.aiContext}
+            onChange={(v) => set('aiContext', v)}
+            sel={`field:${field.id}`}
+          />
           <CustomExtensionsEditor
             value={field.customExtensions}
             onChange={(v) => set('customExtensions', v)}
+            sel={`field:${field.id}`}
           />
         </div>
       ) : null}
@@ -255,7 +275,7 @@ function DatasetCard({
 
       <div className="flex flex-col gap-4 px-4 py-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Field label="name（必填）" hint="数据集唯一标识">
+          <Field label="name（必填）" hint="数据集唯一标识" sel={`dataset:${dataset.id}.name`}>
             <Input
               value={dataset.name}
               onChange={(e) => set('name', e.target.value)}
@@ -263,7 +283,11 @@ function DatasetCard({
               placeholder="orders"
             />
           </Field>
-          <Field label="source（必填）" hint="物理表 database.schema.table 或查询">
+          <Field
+            label="source（必填）"
+            hint="物理表 database.schema.table 或查询"
+            sel={`dataset:${dataset.id}.source`}
+          >
             <Input
               value={dataset.source}
               onChange={(e) => set('source', e.target.value)}
@@ -273,7 +297,11 @@ function DatasetCard({
           </Field>
         </div>
 
-        <Field label="primary_key" hint="主键列（多列为复合主键）">
+        <Field
+          label="primary_key"
+          hint="主键列（多列为复合主键）"
+          sel={`dataset:${dataset.id}.primary_key`}
+        >
           <TagInput
             value={dataset.primaryKey}
             onChange={(v) => set('primaryKey', v)}
@@ -281,11 +309,15 @@ function DatasetCard({
           />
         </Field>
 
-        <Field label="unique_keys" hint="多组唯一键定义，每组可为单列或复合">
+        <Field
+          label="unique_keys"
+          hint="多组唯一键定义，每组可为单列或复合"
+          sel={`dataset:${dataset.id}.unique_keys`}
+        >
           <UniqueKeysEditor value={dataset.uniqueKeys} onChange={(v) => set('uniqueKeys', v)} />
         </Field>
 
-        <Field label="description">
+        <Field label="description" sel={`dataset:${dataset.id}.description`}>
           <Input
             value={dataset.description}
             onChange={(e) => set('description', e.target.value)}
@@ -294,13 +326,18 @@ function DatasetCard({
           />
         </Field>
 
-        <AiContextEditor value={dataset.aiContext} onChange={(v) => set('aiContext', v)} />
+        <AiContextEditor
+          value={dataset.aiContext}
+          onChange={(v) => set('aiContext', v)}
+          sel={`dataset:${dataset.id}`}
+        />
         <CustomExtensionsEditor
           value={dataset.customExtensions}
           onChange={(v) => set('customExtensions', v)}
+          sel={`dataset:${dataset.id}`}
         />
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 rounded-md" data-sel={`dataset:${dataset.id}.fields`}>
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-muted-foreground">fields（行级字段）</p>
             <Button
@@ -366,7 +403,7 @@ export function DatasetsPanel({
     ])
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4" data-sel="model.datasets">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium">数据集 / Datasets</h2>

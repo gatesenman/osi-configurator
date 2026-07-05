@@ -127,14 +127,15 @@ export function SpecPreview({
   const content = useMemo(() => lines.map((l) => l.text).join('\n').concat('\n'), [lines])
   const validation = useMemo(() => validateModel(model), [model])
 
-  // 外部（左侧表单）选中时，滚动到对应行
+  // 外部（左侧表单）选中时，滚动到对应行（精确优先，再按前缀匹配子属性行）
   useEffect(() => {
     if (internalClick.current) {
       internalClick.current = false
       return
     }
     if (!selection || !scrollRef.current) return
-    const idx = lines.findIndex((l) => l.sel === selection)
+    let idx = lines.findIndex((l) => l.sel === selection)
+    if (idx < 0) idx = lines.findIndex((l) => l.sel?.startsWith(`${selection}.`))
     if (idx < 0) return
     const el = scrollRef.current.querySelector(`[data-line="${idx}"]`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
@@ -220,7 +221,11 @@ export function SpecPreview({
         <pre className="p-4 font-mono text-xs leading-relaxed">
           <code>
             {lines.map((line, i) => {
-              const active = line.sel !== undefined && line.sel === selection
+              // 字段级高亮：选中实体时高亮整块，选中具体属性时只高亮对应行
+              const active =
+                line.sel !== undefined &&
+                selection !== null &&
+                (line.sel === selection || line.sel.startsWith(`${selection}.`))
               return (
                 <div
                   key={i}

@@ -23,8 +23,11 @@ const SECTIONS: { id: Section; label: string; icon: typeof FileText }[] = [
   { id: 'metrics', label: '指标', icon: Sigma },
 ]
 
-/** 选择键前缀 → 配置分区 */
+/** 选择键前缀 → 配置分区（字段级键形如 dataset:d1.source / model.datasets） */
 function sectionForSel(sel: SelKey): Section {
+  if (sel.startsWith('model.datasets')) return 'datasets'
+  if (sel.startsWith('model.relationships')) return 'relationships'
+  if (sel.startsWith('model.metrics')) return 'metrics'
   const prefix = sel.split(':')[0]
   switch (prefix) {
     case 'dataset':
@@ -36,6 +39,21 @@ function sectionForSel(sel: SelKey): Section {
       return 'relationships'
     default:
       return 'model'
+  }
+}
+
+/**
+ * 逐级回退定位：先精确匹配 data-sel，找不到则逐段去掉尾部 `.属性`
+ * （如 field:f1.expression.dialects → field:f1.expression → field:f1）
+ */
+function findSelTarget(root: HTMLElement, sel: SelKey): Element | null {
+  let key = sel
+  for (;;) {
+    const el = root.querySelector(`[data-sel="${CSS.escape(key)}"]`)
+    if (el) return el
+    const dot = key.lastIndexOf('.')
+    if (dot < 0) return null
+    key = key.slice(0, dot)
   }
 }
 
@@ -64,20 +82,37 @@ export function OsiConfigurator() {
     }
   }
 
-  // 选中变化时：高亮左侧表单对应卡片；来自预览的选择需滚动定位
+  // 选中变化时：高亮左侧表单对应输入项（字段级，逐级回退）；来自预览的选择需滚动定位
   useEffect(() => {
     const root = mainRef.current
     if (!root) return
-    for (const el of root.querySelectorAll('.sel-active')) {
-      el.classList.remove('sel-active')
+    const clear = () => {
+      for (const el of root.querySelectorAll('.sel-active')) {
+        el.classList.remove('sel-active')
+      }
     }
+    clear()
     if (!selection) return
-    const target = root.querySelector(`[data-sel="${CSS.escape(selection)}"]`)
-    if (!target) return
-    target.classList.add('sel-active')
-    if (selectionSource.current === 'preview') {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+    const highlight = (el: Element) => {
+      clear()
+      el.classList.add('sel-active')
+      if (selectionSource.current === 'preview') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
     }
+
+    const target = findSelTarget(root, selection)
+    if (!target) return
+    // 通知折叠容器（如字段卡）展开自身
+    target.dispatchEvent(new Event('osi-reveal', { bubbles: true }))
+    highlight(target)
+    // 展开渲染完成后重新精确定位到具体输入项
+    const timer = setTimeout(() => {
+      const precise = findSelTarget(root, selection)
+      if (precise && precise !== target) highlight(precise)
+    }, 80)
+    return () => clearTimeout(timer)
   }, [selection, section, model])
 
   const counts: Record<Section, number | null> = {

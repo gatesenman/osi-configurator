@@ -9,14 +9,17 @@ import { Badge } from '@/components/ui/badge'
 export function Field({
   label,
   hint,
+  sel,
   children,
 }: {
   label: string
   hint?: string
+  /** 选择键：与右侧规范预览的对应行双向高亮联动 */
+  sel?: string
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 rounded-md" data-sel={sel}>
       <Label className="text-xs text-muted-foreground">{label}</Label>
       {children}
       {hint ? (
