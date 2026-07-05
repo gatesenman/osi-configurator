@@ -202,11 +202,14 @@ export function SpecPreview({ model }: { model: OsiModel }) {
         </pre>
       </div>
 
-      <div className="flex items-center gap-4 border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
         <span>{lines.length} 行</span>
         <span>{model.datasets.length} datasets</span>
         <span>{model.metrics.length} metrics</span>
         <span>{model.relationships.length} relationships</span>
+        <span>{model.filters.length} filters</span>
+        <span>{model.verifiedQueries.length} queries</span>
+        <span>{model.glossary.length} glossary</span>
       </div>
     </div>
   )

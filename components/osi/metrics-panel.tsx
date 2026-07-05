@@ -6,6 +6,7 @@ import { uid } from '@/lib/osi-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -121,12 +122,31 @@ function MetricCard({
           </Field>
         </div>
 
-        <Field label="SQL 表达式 / 字段">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <Field label="SQL 表达式 / 字段">
+            <Input
+              value={metric.expr}
+              onChange={(e) => set('expr', e.target.value)}
+              className="h-8 font-mono text-sm"
+              placeholder="order_amount"
+            />
+          </Field>
+          <Field label="单位 / Unit">
+            <Input
+              value={metric.unit}
+              onChange={(e) => set('unit', e.target.value)}
+              className="h-8 font-mono text-sm"
+              placeholder="CNY"
+            />
+          </Field>
+        </div>
+
+        <Field label="过滤条件 / Filter" hint="可选的 WHERE 条件，限定指标统计口径">
           <Input
-            value={metric.expr}
-            onChange={(e) => set('expr', e.target.value)}
+            value={metric.filterExpr}
+            onChange={(e) => set('filterExpr', e.target.value)}
             className="h-8 font-mono text-sm"
-            placeholder="order_amount"
+            placeholder="order_status = 'completed'"
           />
         </Field>
 
@@ -142,6 +162,18 @@ function MetricCard({
         <Field label="同义词">
           <TagInput value={metric.synonyms} onChange={(v) => set('synonyms', v)} />
         </Field>
+
+        <div className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2.5">
+          <div>
+            <p className="text-sm">认证指标</p>
+            <p className="text-xs text-muted-foreground">标记为治理团队认证的官方口径</p>
+          </div>
+          <Switch
+            checked={metric.certified}
+            onCheckedChange={(v) => set('certified', v)}
+            aria-label="认证指标"
+          />
+        </div>
       </div>
     </div>
   )
@@ -166,9 +198,12 @@ export function MetricsPanel({
         datasetId: datasets[0]?.id ?? '',
         expr: '',
         agg: 'sum',
+        filterExpr: '',
         format: '',
+        unit: '',
         description: '',
         synonyms: [],
+        certified: false,
       },
     ])
 

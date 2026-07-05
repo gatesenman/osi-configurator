@@ -1,7 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma } from 'lucide-react'
+import {
+  BadgeCheck,
+  Database,
+  FileText,
+  Filter,
+  Hexagon,
+  Link2,
+  RotateCcw,
+  Sigma,
+  Sparkles,
+} from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
 import { defaultModel } from '@/lib/osi-defaults'
 import { Button } from '@/components/ui/button'
@@ -10,15 +20,28 @@ import { ModelInfoPanel } from './model-info-panel'
 import { DatasetsPanel } from './datasets-panel'
 import { MetricsPanel } from './metrics-panel'
 import { RelationshipsPanel } from './relationships-panel'
+import { FiltersPanel } from './filters-panel'
+import { QueriesPanel } from './queries-panel'
+import { AiContextPanel } from './ai-context-panel'
 import { SpecPreview } from './spec-preview'
 
-type Section = 'info' | 'datasets' | 'metrics' | 'relationships'
+type Section =
+  | 'info'
+  | 'datasets'
+  | 'metrics'
+  | 'relationships'
+  | 'filters'
+  | 'queries'
+  | 'ai'
 
 const SECTIONS: { id: Section; label: string; icon: typeof FileText }[] = [
   { id: 'info', label: '模型信息', icon: FileText },
   { id: 'datasets', label: '数据集', icon: Database },
   { id: 'metrics', label: '指标', icon: Sigma },
   { id: 'relationships', label: '关系', icon: Link2 },
+  { id: 'filters', label: '过滤器', icon: Filter },
+  { id: 'queries', label: '验证查询', icon: BadgeCheck },
+  { id: 'ai', label: 'AI 上下文', icon: Sparkles },
 ]
 
 export function OsiConfigurator() {
@@ -30,13 +53,16 @@ export function OsiConfigurator() {
     datasets: model.datasets.length,
     metrics: model.metrics.length,
     relationships: model.relationships.length,
+    filters: model.filters.length,
+    queries: model.verifiedQueries.length,
+    ai: model.glossary.length,
   }
 
   return (
     <div className="flex h-dvh flex-col">
-      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-3 md:px-6">
+      <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-3 md:px-6">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/15">
+          <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
             <Hexagon className="size-4 text-primary" />
           </div>
           <div className="min-w-0">
@@ -64,7 +90,7 @@ export function OsiConfigurator() {
         {/* 左侧导航 */}
         <nav
           aria-label="配置分区"
-          className="flex shrink-0 gap-1 overflow-x-auto border-b border-border p-2 lg:w-48 lg:flex-col lg:border-b-0 lg:border-r lg:p-3"
+          className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:w-48 lg:flex-col lg:border-b-0 lg:border-r lg:p-3"
         >
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
@@ -74,7 +100,7 @@ export function OsiConfigurator() {
               aria-current={section === id ? 'page' : undefined}
               className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors ${
                 section === id
-                  ? 'bg-accent text-foreground font-medium'
+                  ? 'bg-accent text-accent-foreground font-medium'
                   : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground'
               }`}
             >
@@ -116,6 +142,29 @@ export function OsiConfigurator() {
                 relationships={model.relationships}
                 datasets={model.datasets}
                 onChange={(relationships) => setModel({ ...model, relationships })}
+              />
+            ) : null}
+            {section === 'filters' ? (
+              <FiltersPanel
+                filters={model.filters}
+                datasets={model.datasets}
+                onChange={(filters) => setModel({ ...model, filters })}
+              />
+            ) : null}
+            {section === 'queries' ? (
+              <QueriesPanel
+                queries={model.verifiedQueries}
+                onChange={(verifiedQueries) => setModel({ ...model, verifiedQueries })}
+              />
+            ) : null}
+            {section === 'ai' ? (
+              <AiContextPanel
+                glossary={model.glossary}
+                customInstructions={model.customInstructions}
+                onGlossaryChange={(glossary) => setModel({ ...model, glossary })}
+                onInstructionsChange={(customInstructions) =>
+                  setModel({ ...model, customInstructions })
+                }
               />
             ) : null}
           </div>

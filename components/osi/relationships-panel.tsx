@@ -1,7 +1,7 @@
 'use client'
 
 import { ArrowRight, Link2, Plus, Trash2 } from 'lucide-react'
-import type { OsiDataset, OsiRelationship, RelationshipType } from '@/lib/osi-types'
+import type { JoinType, OsiDataset, OsiRelationship, RelationshipType } from '@/lib/osi-types'
 import { uid } from '@/lib/osi-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -18,6 +18,12 @@ const REL_TYPES: { value: RelationshipType; label: string }[] = [
   { value: 'many_to_one', label: 'many_to_one（多对一）' },
   { value: 'one_to_one', label: 'one_to_one（一对一）' },
   { value: 'one_to_many', label: 'one_to_many（一对多）' },
+]
+
+const JOIN_TYPES: { value: JoinType; label: string }[] = [
+  { value: 'left_outer', label: 'left_outer（左外连接）' },
+  { value: 'inner', label: 'inner（内连接）' },
+  { value: 'full_outer', label: 'full_outer（全外连接）' },
 ]
 
 function RelationshipCard({
@@ -81,6 +87,21 @@ function RelationshipCard({
             </Select>
           </Field>
         </div>
+
+        <Field label="连接类型 / Join Type" hint="查询引擎生成 JOIN 时使用的连接方式">
+          <Select value={rel.joinType} onValueChange={(v) => set('joinType', v as JoinType)}>
+            <SelectTrigger className="h-8 font-mono text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {JOIN_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value} className="font-mono text-sm">
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
@@ -160,6 +181,7 @@ export function RelationshipsPanel({
         toDatasetId: datasets[1]?.id ?? datasets[0]?.id ?? '',
         toColumn: '',
         type: 'many_to_one',
+        joinType: 'left_outer',
       },
     ])
 

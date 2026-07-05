@@ -72,6 +72,25 @@ export function ModelInfoPanel({
         </Field>
       </div>
 
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <Field label="默认时区" hint="时间维度解析的默认时区">
+          <Input
+            value={info.defaultTimezone}
+            onChange={(e) => set('defaultTimezone', e.target.value)}
+            className="h-8 font-mono text-sm"
+            placeholder="Asia/Shanghai"
+          />
+        </Field>
+        <Field label="区域 / Locale" hint="展示名称与格式的默认语言区域">
+          <Input
+            value={info.locale}
+            onChange={(e) => set('locale', e.target.value)}
+            className="h-8 font-mono text-sm"
+            placeholder="zh-CN"
+          />
+        </Field>
+      </div>
+
       <Field label="标签">
         <TagInput
           value={info.tags}
