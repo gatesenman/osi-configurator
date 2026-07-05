@@ -25,38 +25,30 @@ const validateFn = ajv.compile(osiSchema)
 function selForPath(path: string, model: OsiModel): SelKey | undefined {
   const seg = path.split('/').filter(Boolean)
   // /semantic_model/0/...
-  if (seg[0] !== 'semantic_model') return 'info'
+  if (seg[0] !== 'semantic_model') return 'model'
   const rest = seg.slice(2)
-  if (rest.length === 0) return 'info'
+  if (rest.length === 0) return 'model'
 
   const idx = (s: string | undefined) => (s !== undefined ? Number.parseInt(s, 10) : Number.NaN)
 
   switch (rest[0]) {
-    case 'datasets':
-      return model.datasets[idx(rest[1])] ? `dataset:${model.datasets[idx(rest[1])].id}` : undefined
+    case 'datasets': {
+      const ds = model.datasets[idx(rest[1])]
+      if (!ds) return undefined
+      if (rest[2] === 'fields') {
+        const f = ds.fields[idx(rest[3])]
+        if (f) return `field:${f.id}`
+      }
+      return `dataset:${ds.id}`
+    }
     case 'metrics':
       return model.metrics[idx(rest[1])] ? `metric:${model.metrics[idx(rest[1])].id}` : undefined
     case 'relationships':
       return model.relationships[idx(rest[1])]
         ? `relationship:${model.relationships[idx(rest[1])].id}`
         : undefined
-    case 'ai_context':
-      switch (rest[1]) {
-        case 'model_info':
-          return 'info'
-        case 'filters':
-          return model.filters[idx(rest[2])] ? `filter:${model.filters[idx(rest[2])].id}` : 'ai'
-        case 'verified_queries':
-          return model.verifiedQueries[idx(rest[2])]
-            ? `query:${model.verifiedQueries[idx(rest[2])].id}`
-            : 'ai'
-        case 'glossary':
-          return model.glossary[idx(rest[2])] ? `glossary:${model.glossary[idx(rest[2])].id}` : 'ai'
-        default:
-          return 'ai'
-      }
     default:
-      return 'info'
+      return 'model'
   }
 }
 

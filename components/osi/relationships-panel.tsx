@@ -1,8 +1,8 @@
 'use client'
 
 import { ArrowRight, Link2, Plus, Trash2 } from 'lucide-react'
-import type { JoinType, OsiDataset, OsiRelationship, RelationshipType } from '@/lib/osi-types'
-import { uid } from '@/lib/osi-types'
+import type { OsiDataset, OsiRelationship } from '@/lib/osi-types'
+import { emptyAiContext, uid } from '@/lib/osi-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
@@ -12,19 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Field } from './field'
-
-const REL_TYPES: { value: RelationshipType; label: string }[] = [
-  { value: 'many_to_one', label: 'many_to_one（多对一）' },
-  { value: 'one_to_one', label: 'one_to_one（一对一）' },
-  { value: 'one_to_many', label: 'one_to_many（一对多）' },
-]
-
-const JOIN_TYPES: { value: JoinType; label: string }[] = [
-  { value: 'left_outer', label: 'left_outer（左外连接）' },
-  { value: 'inner', label: 'inner（内连接）' },
-  { value: 'full_outer', label: 'full_outer（全外连接）' },
-]
+import { Field, TagInput } from './field'
+import { AiContextEditor, CustomExtensionsEditor } from './shared-editors'
 
 function RelationshipCard({
   rel,
@@ -47,9 +36,14 @@ function RelationshipCard({
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-2 min-w-0 text-sm">
           <Link2 className="size-4 shrink-0 text-primary" />
-          <span className="truncate font-mono font-medium">{dsName(rel.fromDatasetId)}</span>
-          <ArrowRight className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate font-mono font-medium">{dsName(rel.toDatasetId)}</span>
+          <span className="truncate font-mono font-medium">
+            {rel.name || <span className="text-muted-foreground italic">未命名关系</span>}
+          </span>
+          <span className="hidden items-center gap-1 font-mono text-xs text-muted-foreground sm:flex">
+            {dsName(rel.fromDatasetId)}
+            <ArrowRight className="size-3" />
+            {dsName(rel.toDatasetId)}
+          </span>
         </div>
         <Button
           variant="ghost"
@@ -63,49 +57,18 @@ function RelationshipCard({
       </div>
 
       <div className="flex flex-col gap-4 p-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Field label="关系名称">
-            <Input
-              value={rel.name}
-              onChange={(e) => set('name', e.target.value)}
-              className="h-8 font-mono text-sm"
-              placeholder="orders_to_customers"
-            />
-          </Field>
-          <Field label="关系类型">
-            <Select value={rel.type} onValueChange={(v) => set('type', v as RelationshipType)}>
-              <SelectTrigger className="h-8 font-mono text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {REL_TYPES.map((t) => (
-                  <SelectItem key={t.value} value={t.value} className="font-mono text-sm">
-                    {t.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-
-        <Field label="连接类型 / Join Type" hint="查询引擎生成 JOIN 时使用的连接方式">
-          <Select value={rel.joinType} onValueChange={(v) => set('joinType', v as JoinType)}>
-            <SelectTrigger className="h-8 font-mono text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {JOIN_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value} className="font-mono text-sm">
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <Field label="name（必填）" hint="关系唯一标识">
+          <Input
+            value={rel.name}
+            onChange={(e) => set('name', e.target.value)}
+            className="h-8 font-mono text-sm"
+            placeholder="orders_to_customers"
+          />
         </Field>
 
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
-            <p className="text-xs font-medium text-muted-foreground">From（源）</p>
+            <p className="text-xs font-medium text-muted-foreground">from（必填，多方）</p>
             <Field label="数据集">
               <Select value={rel.fromDatasetId} onValueChange={(v) => set('fromDatasetId', v)}>
                 <SelectTrigger className="h-8 font-mono text-sm">
@@ -120,18 +83,17 @@ function RelationshipCard({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="关联字段">
-              <Input
-                value={rel.fromColumn}
-                onChange={(e) => set('fromColumn', e.target.value)}
-                className="h-8 font-mono text-sm"
-                placeholder="customer_id"
+            <Field label="from_columns（必填）" hint="外键列，多列为复合键">
+              <TagInput
+                value={rel.fromColumns}
+                onChange={(v) => set('fromColumns', v)}
+                placeholder="customer_id，回车添加"
               />
             </Field>
           </div>
 
           <div className="flex flex-col gap-3 rounded-md border border-border bg-background p-3">
-            <p className="text-xs font-medium text-muted-foreground">To（目标）</p>
+            <p className="text-xs font-medium text-muted-foreground">to（必填，一方）</p>
             <Field label="数据集">
               <Select value={rel.toDatasetId} onValueChange={(v) => set('toDatasetId', v)}>
                 <SelectTrigger className="h-8 font-mono text-sm">
@@ -146,16 +108,21 @@ function RelationshipCard({
                 </SelectContent>
               </Select>
             </Field>
-            <Field label="关联字段">
-              <Input
-                value={rel.toColumn}
-                onChange={(e) => set('toColumn', e.target.value)}
-                className="h-8 font-mono text-sm"
-                placeholder="customer_id"
+            <Field label="to_columns（必填）" hint="主/唯一键列，多列为复合键">
+              <TagInput
+                value={rel.toColumns}
+                onChange={(v) => set('toColumns', v)}
+                placeholder="customer_id，回车添加"
               />
             </Field>
           </div>
         </div>
+
+        <AiContextEditor value={rel.aiContext} onChange={(v) => set('aiContext', v)} />
+        <CustomExtensionsEditor
+          value={rel.customExtensions}
+          onChange={(v) => set('customExtensions', v)}
+        />
       </div>
     </div>
   )
@@ -177,11 +144,11 @@ export function RelationshipsPanel({
         id: uid(),
         name: '',
         fromDatasetId: datasets[0]?.id ?? '',
-        fromColumn: '',
         toDatasetId: datasets[1]?.id ?? datasets[0]?.id ?? '',
-        toColumn: '',
-        type: 'many_to_one',
-        joinType: 'left_outer',
+        fromColumns: [],
+        toColumns: [],
+        aiContext: emptyAiContext(),
+        customExtensions: [],
       },
     ])
 
@@ -191,7 +158,8 @@ export function RelationshipsPanel({
         <div>
           <h2 className="text-sm font-medium">关系 / Relationships</h2>
           <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-            定义数据集之间的连接关系，供查询引擎自动生成 JOIN。
+            name · from / to · from_columns / to_columns（支持复合键） · ai_context ·
+            custom_extensions
           </p>
         </div>
         <Button size="sm" className="h-8 gap-1.5 shrink-0" onClick={addRel}>
@@ -205,7 +173,7 @@ export function RelationshipsPanel({
           key={r.id}
           rel={r}
           datasets={datasets}
-          onChange={(next) => onChange(relationships.map((x) => (x.id === next.id ? next : x)))}
+          onChange={(next) => onChange(relationships.map((x) => (x.id === r.id ? next : x)))}
           onRemove={() => onChange(relationships.filter((x) => x.id !== r.id))}
         />
       ))}
@@ -213,7 +181,9 @@ export function RelationshipsPanel({
       {relationships.length === 0 ? (
         <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
           <Link2 className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">还没有关系定义</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            暂无关系（relationships 为官方可选配置点）
+          </p>
         </div>
       ) : null}
     </div>

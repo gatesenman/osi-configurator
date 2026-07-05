@@ -153,7 +153,7 @@ export function SpecPreview({
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `${model.info.name || 'osi-model'}.osi.${format === 'yaml' ? 'yaml' : 'json'}`
+    a.download = `${model.name || 'osi-model'}.osi.${format === 'yaml' ? 'yaml' : 'json'}`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -170,7 +170,7 @@ export function SpecPreview({
         <div className="flex items-center gap-2 min-w-0">
           <FileCode2 className="size-4 shrink-0 text-muted-foreground" />
           <span className="truncate font-mono text-xs text-muted-foreground">
-            {model.info.name || 'osi-model'}.osi.{format}
+            {model.name || 'osi-model'}.osi.{format}
           </span>
           <Badge variant="outline" className="text-[10px] text-success border-success/30">
             实时同步
@@ -308,11 +308,9 @@ export function SpecPreview({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border px-4 py-2 font-mono text-[11px] text-muted-foreground">
         <span>{lines.length} 行</span>
         <span>{model.datasets.length} datasets</span>
-        <span>{model.metrics.length} metrics</span>
+        <span>{model.datasets.reduce((n, d) => n + d.fields.length, 0)} fields</span>
         <span>{model.relationships.length} relationships</span>
-        <span>{model.filters.length} filters</span>
-        <span>{model.verifiedQueries.length} queries</span>
-        <span>{model.glossary.length} glossary</span>
+        <span>{model.metrics.length} metrics</span>
       </div>
     </div>
   )

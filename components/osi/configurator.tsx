@@ -1,17 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import {
-  BadgeCheck,
-  Database,
-  FileText,
-  Filter,
-  Hexagon,
-  Link2,
-  RotateCcw,
-  Sigma,
-  Sparkles,
-} from 'lucide-react'
+import { Database, FileText, Hexagon, Link2, RotateCcw, Sigma } from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey } from '@/lib/osi-serialize'
 import { OSI_VERSION } from '@/lib/osi-serialize'
@@ -22,56 +12,36 @@ import { ModelInfoPanel } from './model-info-panel'
 import { DatasetsPanel } from './datasets-panel'
 import { MetricsPanel } from './metrics-panel'
 import { RelationshipsPanel } from './relationships-panel'
-import { FiltersPanel } from './filters-panel'
-import { QueriesPanel } from './queries-panel'
-import { AiContextPanel } from './ai-context-panel'
 import { SpecPreview } from './spec-preview'
 
-type Section =
-  | 'info'
-  | 'datasets'
-  | 'metrics'
-  | 'relationships'
-  | 'filters'
-  | 'queries'
-  | 'ai'
+type Section = 'model' | 'datasets' | 'relationships' | 'metrics'
 
 const SECTIONS: { id: Section; label: string; icon: typeof FileText }[] = [
-  { id: 'info', label: '模型信息', icon: FileText },
+  { id: 'model', label: '模型', icon: FileText },
   { id: 'datasets', label: '数据集', icon: Database },
-  { id: 'metrics', label: '指标', icon: Sigma },
   { id: 'relationships', label: '关系', icon: Link2 },
-  { id: 'filters', label: '过滤器', icon: Filter },
-  { id: 'queries', label: '验证查询', icon: BadgeCheck },
-  { id: 'ai', label: 'AI 上下文', icon: Sparkles },
+  { id: 'metrics', label: '指标', icon: Sigma },
 ]
 
 /** 选择键前缀 → 配置分区 */
 function sectionForSel(sel: SelKey): Section {
-  if (sel === 'info') return 'info'
-  if (sel === 'ai') return 'ai'
   const prefix = sel.split(':')[0]
   switch (prefix) {
     case 'dataset':
+    case 'field':
       return 'datasets'
     case 'metric':
       return 'metrics'
     case 'relationship':
       return 'relationships'
-    case 'filter':
-      return 'filters'
-    case 'query':
-      return 'queries'
-    case 'glossary':
-      return 'ai'
     default:
-      return 'info'
+      return 'model'
   }
 }
 
 export function OsiConfigurator() {
   const [model, setModel] = useState<OsiModel>(defaultModel)
-  const [section, setSection] = useState<Section>('info')
+  const [section, setSection] = useState<Section>('model')
   const [selection, setSelection] = useState<SelKey | null>(null)
   const mainRef = useRef<HTMLElement>(null)
   const selectionSource = useRef<'form' | 'preview'>('form')
@@ -111,13 +81,10 @@ export function OsiConfigurator() {
   }, [selection, section, model])
 
   const counts: Record<Section, number | null> = {
-    info: null,
+    model: null,
     datasets: model.datasets.length,
-    metrics: model.metrics.length,
     relationships: model.relationships.length,
-    filters: model.filters.length,
-    queries: model.verifiedQueries.length,
-    ai: model.glossary.length,
+    metrics: model.metrics.length,
   }
 
   return (
@@ -133,7 +100,10 @@ export function OsiConfigurator() {
               Open Semantic Interchange · 开放语义互操作标准
             </p>
           </div>
-          <Badge variant="outline" className="hidden font-mono text-[10px] text-muted-foreground sm:inline-flex">
+          <Badge
+            variant="outline"
+            className="hidden font-mono text-[10px] text-muted-foreground sm:inline-flex"
+          >
             spec v{OSI_VERSION}
           </Badge>
         </div>
@@ -155,7 +125,7 @@ export function OsiConfigurator() {
         {/* 左侧导航 */}
         <nav
           aria-label="配置分区"
-          className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:w-48 lg:flex-col lg:border-b-0 lg:border-r lg:p-3"
+          className="flex shrink-0 gap-1 overflow-x-auto border-b border-border bg-card p-2 lg:w-44 lg:flex-col lg:border-b-0 lg:border-r lg:p-3"
         >
           {SECTIONS.map(({ id, label, icon: Icon }) => (
             <button
@@ -187,23 +157,11 @@ export function OsiConfigurator() {
           className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 lg:min-w-0"
         >
           <div className="mx-auto max-w-2xl">
-            {section === 'info' ? (
-              <ModelInfoPanel
-                info={model.info}
-                onChange={(info) => setModel({ ...model, info })}
-              />
-            ) : null}
+            {section === 'model' ? <ModelInfoPanel model={model} onChange={setModel} /> : null}
             {section === 'datasets' ? (
               <DatasetsPanel
                 datasets={model.datasets}
                 onChange={(datasets) => setModel({ ...model, datasets })}
-              />
-            ) : null}
-            {section === 'metrics' ? (
-              <MetricsPanel
-                metrics={model.metrics}
-                datasets={model.datasets}
-                onChange={(metrics) => setModel({ ...model, metrics })}
               />
             ) : null}
             {section === 'relationships' ? (
@@ -213,37 +171,17 @@ export function OsiConfigurator() {
                 onChange={(relationships) => setModel({ ...model, relationships })}
               />
             ) : null}
-            {section === 'filters' ? (
-              <FiltersPanel
-                filters={model.filters}
-                datasets={model.datasets}
-                onChange={(filters) => setModel({ ...model, filters })}
-              />
-            ) : null}
-            {section === 'queries' ? (
-              <QueriesPanel
-                queries={model.verifiedQueries}
-                onChange={(verifiedQueries) => setModel({ ...model, verifiedQueries })}
-              />
-            ) : null}
-            {section === 'ai' ? (
-              <AiContextPanel
-                glossary={model.glossary}
-                customInstructions={model.customInstructions}
-                onGlossaryChange={(glossary) => setModel({ ...model, glossary })}
-                onInstructionsChange={(customInstructions) =>
-                  setModel({ ...model, customInstructions })
-                }
+            {section === 'metrics' ? (
+              <MetricsPanel
+                metrics={model.metrics}
+                onChange={(metrics) => setModel({ ...model, metrics })}
               />
             ) : null}
           </div>
         </main>
 
-        {/* 右侧实时预览 */}
-        <aside
-          aria-label="规范预览"
-          className="h-96 shrink-0 border-t border-border lg:h-auto lg:w-[42%] lg:max-w-2xl lg:border-l lg:border-t-0"
-        >
+        {/* 右侧规范预览 */}
+        <aside className="min-h-64 shrink-0 border-t border-border lg:min-h-0 lg:w-[44%] lg:max-w-2xl lg:border-t-0 lg:border-l">
           <SpecPreview model={model} selection={selection} onSelect={handlePreviewSelect} />
         </aside>
       </div>

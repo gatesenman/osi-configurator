@@ -1,31 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import {
-  ChevronDown,
-  ChevronRight,
-  Clock,
-  Database,
-  Hash,
-  KeyRound,
-  Plus,
-  ShieldAlert,
-  Trash2,
-} from 'lucide-react'
-import type {
-  Classification,
-  DataType,
-  OsiDataset,
-  OsiDimension,
-  OsiFact,
-  TimeGranularity,
-} from '@/lib/osi-types'
-import { uid } from '@/lib/osi-types'
+import { ChevronDown, ChevronRight, Columns3, Database, Plus, Trash2 } from 'lucide-react'
+import type { DimensionMode, OsiDataset, OsiField, OsiUniqueKey } from '@/lib/osi-types'
+import { emptyAiContext, uid } from '@/lib/osi-types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
 import {
   Select,
   SelectContent,
@@ -34,89 +15,39 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Field, TagInput } from './field'
+import {
+  AiContextEditor,
+  CustomExtensionsEditor,
+  DialectExpressionsEditor,
+} from './shared-editors'
 
-const DATA_TYPES: DataType[] = ['string', 'integer', 'decimal', 'boolean', 'date', 'timestamp']
-const GRANULARITIES: TimeGranularity[] = [
-  'second',
-  'minute',
-  'hour',
-  'day',
-  'week',
-  'month',
-  'quarter',
-  'year',
-]
-const CLASSIFICATIONS: { value: Classification; label: string }[] = [
-  { value: 'public', label: 'public（公开）' },
-  { value: 'internal', label: 'internal（内部）' },
-  { value: 'confidential', label: 'confidential（机密）' },
-  { value: 'restricted', label: 'restricted（受限）' },
+const DIMENSION_MODES: { value: DimensionMode; label: string; hint: string }[] = [
+  { value: 'none', label: '不设置', hint: '不输出 dimension 配置点' },
+  { value: 'plain', label: '维度（未指定 is_time）', hint: '输出 dimension: {}' },
+  { value: 'time', label: '时间维度', hint: '输出 dimension.is_time: true' },
+  { value: 'not_time', label: '非时间维度', hint: '输出 dimension.is_time: false' },
 ]
 
-function newDimension(): OsiDimension {
-  return {
-    id: uid(),
-    name: '',
-    label: '',
-    expr: '',
-    dataType: 'string',
-    description: '',
-    synonyms: [],
-    sampleValues: [],
-    isTimeDimension: false,
-    isPrimaryKey: false,
-    isUnique: false,
-    classification: 'internal',
-  }
-}
-
-function newFact(): OsiFact {
-  return {
-    id: uid(),
-    name: '',
-    label: '',
-    expr: '',
-    dataType: 'decimal',
-    description: '',
-    synonyms: [],
-  }
-}
-
-export function newDataset(): OsiDataset {
-  return {
-    id: uid(),
-    name: '',
-    label: '',
-    description: '',
-    database: '',
-    schema: '',
-    table: '',
-    sql: '',
-    dimensions: [newDimension()],
-    facts: [],
-  }
-}
-
-function DimensionEditor({
-  dim,
+function FieldCard({
+  field,
   onChange,
   onRemove,
 }: {
-  dim: OsiDimension
-  onChange: (next: OsiDimension) => void
+  field: OsiField
+  onChange: (next: OsiField) => void
   onRemove: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const set = <K extends keyof OsiDimension>(key: K, value: OsiDimension[K]) =>
-    onChange({ ...dim, [key]: value })
+  const set = <K extends keyof OsiField>(key: K, value: OsiField[K]) =>
+    onChange({ ...field, [key]: value })
 
   return (
-    <div className="rounded-md border border-border bg-background">
+    <div className="rounded-md border border-border bg-background" data-sel={`field:${field.id}`}>
       <div className="flex items-center gap-2 px-3 py-2">
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex flex-1 items-center gap-2 text-left min-w-0"
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
           aria-expanded={open}
         >
           {open ? (
@@ -124,280 +55,150 @@ function DimensionEditor({
           ) : (
             <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
           )}
+          <Columns3 className="size-3.5 shrink-0 text-muted-foreground" />
           <span className="truncate font-mono text-sm">
-            {dim.name || <span className="text-muted-foreground italic">未命名维度</span>}
+            {field.name || <span className="text-muted-foreground italic">未命名字段</span>}
           </span>
-          <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
-            {dim.dataType}
-          </Badge>
-          {dim.isTimeDimension ? (
-            <Badge variant="secondary" className="gap-1 text-[10px]">
-              <Clock className="size-3" />
-              时间
+          {field.dimensionMode === 'time' ? (
+            <Badge variant="secondary" className="text-[10px]">
+              时间维度
             </Badge>
           ) : null}
-          {dim.isPrimaryKey ? (
-            <Badge variant="secondary" className="gap-1 text-[10px]">
-              <KeyRound className="size-3" />
-              主键
+          {field.dimensionMode === 'plain' || field.dimensionMode === 'not_time' ? (
+            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+              维度
             </Badge>
           ) : null}
-          {dim.classification === 'confidential' || dim.classification === 'restricted' ? (
-            <Badge variant="secondary" className="gap-1 text-[10px] text-destructive">
-              <ShieldAlert className="size-3" />
-              {dim.classification}
+          {field.dialects.length > 1 ? (
+            <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
+              {field.dialects.length} dialects
             </Badge>
           ) : null}
         </button>
         <Button
           variant="ghost"
           size="icon"
-          className="size-7 text-muted-foreground hover:text-destructive"
+          className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
           onClick={onRemove}
-          aria-label="删除维度"
+          aria-label="删除字段"
         >
           <Trash2 className="size-3.5" />
         </Button>
       </div>
 
       {open ? (
-        <div className="flex flex-col gap-4 border-t border-border px-3 py-4">
+        <div className="flex flex-col gap-3 border-t border-border px-3 py-3">
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="维度名称" hint="snake_case 命名">
+            <Field label="name（必填）" hint="字段在数据集内的唯一标识">
               <Input
-                value={dim.name}
+                value={field.name}
                 onChange={(e) => set('name', e.target.value)}
                 className="h-8 font-mono text-sm"
-                placeholder="region"
+                placeholder="order_date"
               />
             </Field>
-            <Field label="展示名称 / Label">
+            <Field label="label" hint="分类用标签">
               <Input
-                value={dim.label}
+                value={field.label}
                 onChange={(e) => set('label', e.target.value)}
                 className="h-8 text-sm"
-                placeholder="销售大区"
+                placeholder="下单日期"
               />
             </Field>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="SQL 表达式 / 字段">
-              <Input
-                value={dim.expr}
-                onChange={(e) => set('expr', e.target.value)}
-                className="h-8 font-mono text-sm"
-                placeholder="sales_region"
-              />
-            </Field>
-            <Field label="数据类型">
-              <Select value={dim.dataType} onValueChange={(v) => set('dataType', v as DataType)}>
-                <SelectTrigger className="h-8 font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DATA_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="font-mono text-sm">
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="描述">
-              <Input
-                value={dim.description}
-                onChange={(e) => set('description', e.target.value)}
-                className="h-8 text-sm"
-                placeholder="业务含义说明"
-              />
-            </Field>
-            <Field label="数据分级 / Classification" hint="数据安全分级，用于访问治理">
-              <Select
-                value={dim.classification}
-                onValueChange={(v) => set('classification', v as Classification)}
-              >
-                <SelectTrigger className="h-8 font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CLASSIFICATIONS.map((c) => (
-                    <SelectItem key={c.value} value={c.value} className="font-mono text-sm">
-                      {c.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-
-          <Field label="同义词" hint="供自然语言查询 / AI 语义理解使用">
-            <TagInput value={dim.synonyms} onChange={(v) => set('synonyms', v)} />
-          </Field>
-
-          <Field label="示例值 / Sample Values" hint="帮助 AI 理解字段取值范围">
-            <TagInput
-              value={dim.sampleValues}
-              onChange={(v) => set('sampleValues', v)}
-              placeholder="输入示例值后按回车"
+          <Field label="expression（必填）">
+            <DialectExpressionsEditor
+              value={field.dialects}
+              onChange={(dialects) => set('dialects', dialects)}
+              placeholder="CAST(order_ts AS DATE)"
             />
           </Field>
 
-          <div className="flex flex-wrap items-center gap-6">
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={dim.isTimeDimension}
-                onCheckedChange={(v) => set('isTimeDimension', v)}
-                aria-label="时间维度"
-              />
-              时间维度
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={dim.isPrimaryKey}
-                onCheckedChange={(v) => set('isPrimaryKey', v)}
-                aria-label="主键"
-              />
-              主键
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <Switch
-                checked={dim.isUnique}
-                onCheckedChange={(v) => set('isUnique', v)}
-                aria-label="唯一值"
-              />
-              唯一值
-            </label>
-            {dim.isTimeDimension ? (
-              <Select
-                value={dim.granularity ?? 'day'}
-                onValueChange={(v) => set('granularity', v as TimeGranularity)}
-              >
-                <SelectTrigger className="h-8 w-32 font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {GRANULARITIES.map((g) => (
-                    <SelectItem key={g} value={g} className="font-mono text-sm">
-                      {g}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : null}
-          </div>
+          <Field
+            label="dimension"
+            hint={DIMENSION_MODES.find((m) => m.value === field.dimensionMode)?.hint}
+          >
+            <Select
+              value={field.dimensionMode}
+              onValueChange={(v) => set('dimensionMode', v as DimensionMode)}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIMENSION_MODES.map((m) => (
+                  <SelectItem key={m.value} value={m.value} className="text-sm">
+                    {m.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          <Field label="description">
+            <Input
+              value={field.description}
+              onChange={(e) => set('description', e.target.value)}
+              className="h-8 text-sm"
+              placeholder="订单创建日期"
+            />
+          </Field>
+
+          <AiContextEditor value={field.aiContext} onChange={(v) => set('aiContext', v)} />
+          <CustomExtensionsEditor
+            value={field.customExtensions}
+            onChange={(v) => set('customExtensions', v)}
+          />
         </div>
       ) : null}
     </div>
   )
 }
 
-function FactEditor({
-  fact,
+function UniqueKeysEditor({
+  value,
   onChange,
-  onRemove,
 }: {
-  fact: OsiFact
-  onChange: (next: OsiFact) => void
-  onRemove: () => void
+  value: OsiUniqueKey[]
+  onChange: (next: OsiUniqueKey[]) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const set = <K extends keyof OsiFact>(key: K, value: OsiFact[K]) =>
-    onChange({ ...fact, [key]: value })
-
   return (
-    <div className="rounded-md border border-border bg-background">
-      <div className="flex items-center gap-2 px-3 py-2">
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          className="flex flex-1 items-center gap-2 text-left min-w-0"
-          aria-expanded={open}
-        >
-          {open ? (
-            <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
-          )}
-          <Hash className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className="truncate font-mono text-sm">
-            {fact.name || <span className="text-muted-foreground italic">未命名度量</span>}
+    <div className="flex flex-col gap-2">
+      {value.map((uk, i) => (
+        <div key={uk.id} className="flex items-start gap-2">
+          <span className="mt-1.5 shrink-0 font-mono text-xs text-muted-foreground">
+            #{i + 1}
           </span>
-          <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
-            {fact.dataType}
-          </Badge>
-        </button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7 text-muted-foreground hover:text-destructive"
-          onClick={onRemove}
-          aria-label="删除度量"
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
-      </div>
-
-      {open ? (
-        <div className="flex flex-col gap-4 border-t border-border px-3 py-4">
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="度量名称" hint="snake_case 命名">
-              <Input
-                value={fact.name}
-                onChange={(e) => set('name', e.target.value)}
-                className="h-8 font-mono text-sm"
-                placeholder="order_amount"
-              />
-            </Field>
-            <Field label="展示名称 / Label">
-              <Input
-                value={fact.label}
-                onChange={(e) => set('label', e.target.value)}
-                className="h-8 text-sm"
-                placeholder="订单金额"
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <Field label="SQL 表达式 / 字段">
-              <Input
-                value={fact.expr}
-                onChange={(e) => set('expr', e.target.value)}
-                className="h-8 font-mono text-sm"
-                placeholder="order_amount"
-              />
-            </Field>
-            <Field label="数据类型">
-              <Select value={fact.dataType} onValueChange={(v) => set('dataType', v as DataType)}>
-                <SelectTrigger className="h-8 font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DATA_TYPES.map((t) => (
-                    <SelectItem key={t} value={t} className="font-mono text-sm">
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
-          <Field label="描述">
-            <Input
-              value={fact.description}
-              onChange={(e) => set('description', e.target.value)}
-              className="h-8 text-sm"
-              placeholder="业务含义说明"
+          <div className="flex-1">
+            <TagInput
+              value={uk.columns}
+              onChange={(columns) =>
+                onChange(value.map((x) => (x.id === uk.id ? { ...x, columns } : x)))
+              }
+              placeholder="列名，回车添加（多列为复合键）"
             />
-          </Field>
-          <Field label="同义词">
-            <TagInput value={fact.synonyms} onChange={(v) => set('synonyms', v)} />
-          </Field>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+            onClick={() => onChange(value.filter((x) => x.id !== uk.id))}
+            aria-label="删除唯一键"
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
         </div>
-      ) : null}
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-7 w-fit gap-1 bg-transparent text-xs"
+        onClick={() => onChange([...value, { id: uid(), columns: [] }])}
+      >
+        <Plus className="size-3" />
+        添加唯一键组
+      </Button>
     </div>
   )
 }
@@ -413,8 +214,21 @@ function DatasetCard({
 }) {
   const set = <K extends keyof OsiDataset>(key: K, value: OsiDataset[K]) =>
     onChange({ ...dataset, [key]: value })
-  const useSql = dataset.sql.length > 0
-  const [sqlMode, setSqlMode] = useState(useSql)
+
+  const addField = () =>
+    set('fields', [
+      ...dataset.fields,
+      {
+        id: uid(),
+        name: '',
+        dialects: [{ id: uid(), dialect: 'ANSI_SQL', expression: '' }],
+        dimensionMode: 'none',
+        label: '',
+        description: '',
+        aiContext: emptyAiContext(),
+        customExtensions: [],
+      },
+    ])
 
   return (
     <div className="rounded-lg border border-border bg-card" data-sel={`dataset:${dataset.id}`}>
@@ -424,11 +238,8 @@ function DatasetCard({
           <span className="truncate font-mono text-sm font-medium">
             {dataset.name || <span className="text-muted-foreground italic">未命名数据集</span>}
           </span>
-          <Badge variant="outline" className="text-[10px] text-muted-foreground">
-            {dataset.dimensions.length} 维度
-          </Badge>
-          <Badge variant="outline" className="text-[10px] text-muted-foreground">
-            {dataset.facts.length} 度量
+          <Badge variant="outline" className="font-mono text-[10px] text-muted-foreground">
+            {dataset.fields.length} fields
           </Badge>
         </div>
         <Button
@@ -442,9 +253,9 @@ function DatasetCard({
         </Button>
       </div>
 
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-4 px-4 py-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          <Field label="数据集名称">
+          <Field label="name（必填）" hint="数据集唯一标识">
             <Input
               value={dataset.name}
               onChange={(e) => set('name', e.target.value)}
@@ -452,157 +263,79 @@ function DatasetCard({
               placeholder="orders"
             />
           </Field>
-          <Field label="展示名称 / Label">
+          <Field label="source（必填）" hint="物理表 database.schema.table 或查询">
             <Input
-              value={dataset.label}
-              onChange={(e) => set('label', e.target.value)}
-              className="h-8 text-sm"
-              placeholder="订单"
+              value={dataset.source}
+              onChange={(e) => set('source', e.target.value)}
+              className="h-8 font-mono text-sm"
+              placeholder="analytics.sales.fct_orders"
             />
           </Field>
         </div>
 
-        <Field label="描述">
+        <Field label="primary_key" hint="主键列（多列为复合主键）">
+          <TagInput
+            value={dataset.primaryKey}
+            onChange={(v) => set('primaryKey', v)}
+            placeholder="列名，回车添加"
+          />
+        </Field>
+
+        <Field label="unique_keys" hint="多组唯一键定义，每组可为单列或复合">
+          <UniqueKeysEditor value={dataset.uniqueKeys} onChange={(v) => set('uniqueKeys', v)} />
+        </Field>
+
+        <Field label="description">
           <Input
             value={dataset.description}
             onChange={(e) => set('description', e.target.value)}
             className="h-8 text-sm"
-            placeholder="订单事实表"
+            placeholder="订单事实表，一行代表一笔订单"
           />
         </Field>
 
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">数据来源 / Source</p>
-            <label className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Switch
-                checked={sqlMode}
-                onCheckedChange={(v) => {
-                  setSqlMode(v)
-                  if (!v) set('sql', '')
-                }}
-                aria-label="使用 SQL 派生"
-              />
-              SQL 派生数据集
-            </label>
-          </div>
-          {sqlMode ? (
-            <Field label="SQL 定义" hint="使用 SELECT 语句定义派生数据集，优先于物理表映射">
-              <Textarea
-                value={dataset.sql}
-                onChange={(e) => set('sql', e.target.value)}
-                className="min-h-20 font-mono text-sm"
-                placeholder="SELECT * FROM analytics.dwd.fact_orders WHERE is_deleted = false"
-              />
-            </Field>
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              <Field label="Database">
-                <Input
-                  value={dataset.database}
-                  onChange={(e) => set('database', e.target.value)}
-                  className="h-8 font-mono text-sm"
-                  placeholder="analytics"
-                />
-              </Field>
-              <Field label="Schema">
-                <Input
-                  value={dataset.schema}
-                  onChange={(e) => set('schema', e.target.value)}
-                  className="h-8 font-mono text-sm"
-                  placeholder="dwd"
-                />
-              </Field>
-              <Field label="Table">
-                <Input
-                  value={dataset.table}
-                  onChange={(e) => set('table', e.target.value)}
-                  className="h-8 font-mono text-sm"
-                  placeholder="fact_orders"
-                />
-              </Field>
-            </div>
-          )}
-        </div>
+        <AiContextEditor value={dataset.aiContext} onChange={(v) => set('aiContext', v)} />
+        <CustomExtensionsEditor
+          value={dataset.customExtensions}
+          onChange={(v) => set('customExtensions', v)}
+        />
 
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">维度定义 / Dimensions</p>
+            <p className="text-xs font-medium text-muted-foreground">fields（行级字段）</p>
             <Button
               variant="ghost"
               size="sm"
               className="h-7 gap-1 text-xs text-primary hover:text-primary"
-              onClick={() => set('dimensions', [...dataset.dimensions, newDimension()])}
+              onClick={addField}
             >
               <Plus className="size-3.5" />
-              添加维度
+              添加字段
             </Button>
           </div>
-          <div className="flex flex-col gap-2">
-            {dataset.dimensions.map((dim) => (
-              <DimensionEditor
-                key={dim.id}
-                dim={dim}
-                onChange={(next) =>
-                  set(
-                    'dimensions',
-                    dataset.dimensions.map((d) => (d.id === next.id ? next : d)),
-                  )
-                }
-                onRemove={() =>
-                  set(
-                    'dimensions',
-                    dataset.dimensions.filter((d) => d.id !== dim.id),
-                  )
-                }
-              />
-            ))}
-            {dataset.dimensions.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                暂无维度，点击「添加维度」开始定义
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium text-muted-foreground">事实度量 / Facts</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1 text-xs text-primary hover:text-primary"
-              onClick={() => set('facts', [...dataset.facts, newFact()])}
-            >
-              <Plus className="size-3.5" />
-              添加度量
-            </Button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {dataset.facts.map((fact) => (
-              <FactEditor
-                key={fact.id}
-                fact={fact}
-                onChange={(next) =>
-                  set(
-                    'facts',
-                    dataset.facts.map((f) => (f.id === next.id ? next : f)),
-                  )
-                }
-                onRemove={() =>
-                  set(
-                    'facts',
-                    dataset.facts.filter((f) => f.id !== fact.id),
-                  )
-                }
-              />
-            ))}
-            {dataset.facts.length === 0 ? (
-              <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
-                暂无事实度量（行级可聚合数值字段）
-              </p>
-            ) : null}
-          </div>
+          {dataset.fields.map((f) => (
+            <FieldCard
+              key={f.id}
+              field={f}
+              onChange={(next) =>
+                set(
+                  'fields',
+                  dataset.fields.map((x) => (x.id === f.id ? next : x)),
+                )
+              }
+              onRemove={() =>
+                set(
+                  'fields',
+                  dataset.fields.filter((x) => x.id !== f.id),
+                )
+              }
+            />
+          ))}
+          {dataset.fields.length === 0 ? (
+            <p className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground">
+              暂无字段，点击「添加字段」开始定义
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
@@ -616,40 +349,51 @@ export function DatasetsPanel({
   datasets: OsiDataset[]
   onChange: (next: OsiDataset[]) => void
 }) {
+  const addDataset = () =>
+    onChange([
+      ...datasets,
+      {
+        id: uid(),
+        name: '',
+        source: '',
+        primaryKey: [],
+        uniqueKeys: [],
+        description: '',
+        aiContext: emptyAiContext(),
+        fields: [],
+        customExtensions: [],
+      },
+    ])
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="text-sm font-medium">数据集 / Datasets</h2>
-          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-            映射物理表或 SQL 派生数据集，定义维度（含时间维度、主键、数据分级）与事实度量。
+          <p className="text-xs text-muted-foreground">
+            name · source · primary_key · unique_keys · fields · ai_context · custom_extensions
           </p>
         </div>
-        <Button
-          size="sm"
-          className="h-8 gap-1.5 shrink-0"
-          onClick={() => onChange([...datasets, newDataset()])}
-        >
+        <Button size="sm" className="h-8 gap-1.5" onClick={addDataset}>
           <Plus className="size-3.5" />
           添加数据集
         </Button>
       </div>
 
+      {datasets.length === 0 ? (
+        <p className="rounded-md border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          官方 schema 要求至少 1 个数据集（datasets minItems: 1）
+        </p>
+      ) : null}
+
       {datasets.map((ds) => (
         <DatasetCard
           key={ds.id}
           dataset={ds}
-          onChange={(next) => onChange(datasets.map((d) => (d.id === next.id ? next : d)))}
-          onRemove={() => onChange(datasets.filter((d) => d.id !== ds.id))}
+          onChange={(next) => onChange(datasets.map((x) => (x.id === ds.id ? next : x)))}
+          onRemove={() => onChange(datasets.filter((x) => x.id !== ds.id))}
         />
       ))}
-
-      {datasets.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border px-4 py-10 text-center">
-          <Database className="mx-auto size-6 text-muted-foreground" />
-          <p className="mt-2 text-sm text-muted-foreground">还没有数据集</p>
-        </div>
-      ) : null}
     </div>
   )
 }

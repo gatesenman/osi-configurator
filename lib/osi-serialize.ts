@@ -1,12 +1,11 @@
-import type { AggregationType, OsiModel } from './osi-types'
+import type { OsiAiContext, OsiCustomExtension, OsiField, OsiModel } from './osi-types'
 
 /** 官方 OSI 规范版本（与 osi-schema.json 中 version const 一致） */
 export const OSI_VERSION = '0.2.0.dev0'
 
 /**
  * 选择键（selection key）：用于左侧表单与右侧规范预览的双向高亮联动。
- * 形如 info / ai / dataset:<id> / metric:<id> / relationship:<id> /
- * filter:<id> / query:<id> / glossary:<id>
+ * model / dataset:<id> / field:<id> / metric:<id> / relationship:<id>
  */
 export type SelKey = string
 
@@ -25,149 +24,103 @@ function getSel(value: unknown): SelKey | undefined {
   return undefined
 }
 
-/** 构造官方 Expression 结构 */
-function expression(expr: string) {
-  return { dialects: [{ dialect: 'ANSI_SQL', expression: expr }] }
-}
-
-/** 若对象所有值均为 undefined 则返回 undefined（用于可选的 ai_context） */
-function ctx(obj: Record<string, unknown>): Record<string, unknown> | undefined {
+/**
+ * $defs/AIContext：oneOf [string, { instructions, synonyms, examples }]
+ * 未启用或内容为空时返回 undefined（不输出该配置点）
+ */
+function aiContext(ctx: OsiAiContext): unknown {
+  if (!ctx.enabled) return undefined
+  if (ctx.mode === 'text') {
+    return ctx.text || undefined
+  }
+  const obj: Record<string, unknown> = {
+    instructions: ctx.instructions || undefined,
+    synonyms: ctx.synonyms.length > 0 ? ctx.synonyms : undefined,
+    examples: ctx.examples.length > 0 ? ctx.examples : undefined,
+  }
   const hasValue = Object.values(obj).some((v) => v !== undefined)
   return hasValue ? obj : undefined
 }
 
-const AGG_SQL: Record<AggregationType, (expr: string) => string> = {
-  sum: (e) => `SUM(${e})`,
-  avg: (e) => `AVG(${e})`,
-  count: (e) => `COUNT(${e})`,
-  count_distinct: (e) => `COUNT(DISTINCT ${e})`,
-  min: (e) => `MIN(${e})`,
-  max: (e) => `MAX(${e})`,
-  median: (e) => `MEDIAN(${e})`,
+/** $defs/CustomExtension[]：{ vendor_name, data } */
+function customExtensions(exts: OsiCustomExtension[]): unknown {
+  if (exts.length === 0) return undefined
+  return exts.map((e) => ({
+    vendor_name: e.vendorName || 'COMMON',
+    data: e.data || '{}',
+  }))
+}
+
+/** $defs/Expression：{ dialects: [{ dialect, expression }] }（minItems: 1） */
+function expression(dialects: { dialect: string; expression: string }[]): unknown {
+  return {
+    dialects: dialects.map((d) => ({
+      dialect: d.dialect,
+      expression: d.expression || 'NULL',
+    })),
+  }
+}
+
+/** $defs/Field：dimension 三态（none 不输出 / plain {} / time { is_time }） */
+function field(f: OsiField): Record<string, unknown> {
+  let dimension: unknown
+  switch (f.dimensionMode) {
+    case 'plain':
+      dimension = {}
+      break
+    case 'time':
+      dimension = { is_time: true }
+      break
+    case 'not_time':
+      dimension = { is_time: false }
+      break
+    default:
+      dimension = undefined
+  }
+  return tag(
+    {
+      name: f.name || 'untitled_field',
+      expression: expression(f.dialects),
+      dimension,
+      label: f.label || undefined,
+      description: f.description || undefined,
+      ai_context: aiContext(f.aiContext),
+      custom_extensions: customExtensions(f.customExtensions),
+    },
+    `field:${f.id}`,
+  )
 }
 
 /**
- * 将编辑器模型转换为符合官方 OSI 0.2.0.dev0 JSON Schema 的规范对象。
- * 官方 schema 严格（additionalProperties: false），扩展元数据一律放入
- * 官方开放扩展的 ai_context（additionalProperties: true）。
+ * 将编辑器模型转换为与官方 OSI 0.2.0.dev0 JSON Schema 1:1 对应的规范对象。
+ * 仅输出官方 schema 定义的属性，无任何私有扩展。
  */
 export function toOsiSpec(model: OsiModel) {
   const dsName = (id: string) => model.datasets.find((d) => d.id === id)?.name || id
 
   const semanticModel = tag(
     {
-      name: model.info.name || 'untitled_model',
-      description: model.info.description || undefined,
-      ai_context: tag(
-        {
-          model_info: tag(
-            {
-              version: model.info.version || undefined,
-              owner: model.info.owner || undefined,
-              domain: model.info.domain || undefined,
-              default_timezone: model.info.defaultTimezone || undefined,
-              locale: model.info.locale || undefined,
-              certified: model.info.certified || undefined,
-              tags: model.info.tags.length > 0 ? model.info.tags : undefined,
-            },
-            'info',
-          ),
-          instructions: model.customInstructions || undefined,
-          glossary:
-            model.glossary.length > 0
-              ? model.glossary.map((g) =>
-                  tag(
-                    {
-                      term: g.term || 'untitled_term',
-                      definition: g.definition || undefined,
-                      synonyms: g.synonyms.length > 0 ? g.synonyms : undefined,
-                    },
-                    `glossary:${g.id}`,
-                  ),
-                )
-              : undefined,
-          filters:
-            model.filters.length > 0
-              ? model.filters.map((f) =>
-                  tag(
-                    {
-                      name: f.name || 'untitled_filter',
-                      label: f.label || undefined,
-                      dataset: dsName(f.datasetId),
-                      expression: f.expr || undefined,
-                      description: f.description || undefined,
-                      synonyms: f.synonyms.length > 0 ? f.synonyms : undefined,
-                    },
-                    `filter:${f.id}`,
-                  ),
-                )
-              : undefined,
-          verified_queries:
-            model.verifiedQueries.length > 0
-              ? model.verifiedQueries.map((q) =>
-                  tag(
-                    {
-                      name: q.name || 'untitled_query',
-                      question: q.question || undefined,
-                      sql: q.sql || undefined,
-                      verified_by: q.verifiedBy || undefined,
-                      verified_at: q.verifiedAt || undefined,
-                      use_as_onboarding_question: q.useAsOnboarding || undefined,
-                    },
-                    `query:${q.id}`,
-                  ),
-                )
-              : undefined,
-        },
-        'ai',
-      ),
-      datasets: model.datasets.map((ds) => {
-        const pk = ds.dimensions.filter((d) => d.isPrimaryKey).map((d) => d.name)
-        const source = ds.sql
-          ? ds.sql
-          : [ds.database, ds.schema, ds.table].filter(Boolean).join('.')
-        return tag(
+      name: model.name || 'untitled_model',
+      description: model.description || undefined,
+      ai_context: aiContext(model.aiContext),
+      datasets: model.datasets.map((ds) =>
+        tag(
           {
             name: ds.name || 'untitled_dataset',
-            source: source || 'undefined_source',
-            primary_key: pk.length > 0 ? pk : undefined,
+            source: ds.source || 'undefined_source',
+            primary_key: ds.primaryKey.length > 0 ? ds.primaryKey : undefined,
+            unique_keys:
+              ds.uniqueKeys.length > 0
+                ? ds.uniqueKeys.map((uk) => uk.columns).filter((c) => c.length > 0)
+                : undefined,
             description: ds.description || undefined,
-            ai_context: ctx({
-              label: ds.label || undefined,
-            }),
-            fields: [
-              ...ds.dimensions.map((d) => ({
-                name: d.name || 'untitled_field',
-                expression: expression(d.expr || d.name || 'NULL'),
-                dimension: d.isTimeDimension ? { is_time: true } : {},
-                label: d.label || undefined,
-                description: d.description || undefined,
-                ai_context: ctx({
-                  synonyms: d.synonyms.length > 0 ? d.synonyms : undefined,
-                  data_type: d.dataType,
-                  sample_values: d.sampleValues.length > 0 ? d.sampleValues : undefined,
-                  unique: d.isUnique || undefined,
-                  classification:
-                    d.classification !== 'public' ? d.classification : undefined,
-                  granularity: d.isTimeDimension ? (d.granularity ?? 'day') : undefined,
-                }),
-              })),
-              ...ds.facts.map((f) => ({
-                name: f.name || 'untitled_field',
-                expression: expression(f.expr || f.name || 'NULL'),
-                label: f.label || undefined,
-                description: f.description || undefined,
-                ai_context: ctx({
-                  synonyms: f.synonyms.length > 0 ? f.synonyms : undefined,
-                  data_type: f.dataType,
-                  is_fact: true,
-                }),
-              })),
-            ],
+            ai_context: aiContext(ds.aiContext),
+            fields: ds.fields.length > 0 ? ds.fields.map(field) : undefined,
+            custom_extensions: customExtensions(ds.customExtensions),
           },
           `dataset:${ds.id}`,
-        )
-      }),
+        ),
+      ),
       relationships:
         model.relationships.length > 0
           ? model.relationships.map((r) =>
@@ -176,12 +129,10 @@ export function toOsiSpec(model: OsiModel) {
                   name: r.name || 'untitled_relationship',
                   from: dsName(r.fromDatasetId),
                   to: dsName(r.toDatasetId),
-                  from_columns: [r.fromColumn || 'unknown_column'],
-                  to_columns: [r.toColumn || 'unknown_column'],
-                  ai_context: ctx({
-                    type: r.type,
-                    join_type: r.joinType,
-                  }),
+                  from_columns: r.fromColumns.length > 0 ? r.fromColumns : ['unknown_column'],
+                  to_columns: r.toColumns.length > 0 ? r.toColumns : ['unknown_column'],
+                  ai_context: aiContext(r.aiContext),
+                  custom_extensions: customExtensions(r.customExtensions),
                 },
                 `relationship:${r.id}`,
               ),
@@ -189,30 +140,22 @@ export function toOsiSpec(model: OsiModel) {
           : undefined,
       metrics:
         model.metrics.length > 0
-          ? model.metrics.map((m) => {
-              const base = m.expr || m.name || 'NULL'
-              return tag(
+          ? model.metrics.map((m) =>
+              tag(
                 {
                   name: m.name || 'untitled_metric',
-                  expression: expression(AGG_SQL[m.agg](base)),
+                  expression: expression(m.dialects),
                   description: m.description || undefined,
-                  ai_context: ctx({
-                    label: m.label || undefined,
-                    dataset: dsName(m.datasetId),
-                    aggregation: m.agg,
-                    filter: m.filterExpr || undefined,
-                    format: m.format || undefined,
-                    unit: m.unit || undefined,
-                    synonyms: m.synonyms.length > 0 ? m.synonyms : undefined,
-                    certified: m.certified || undefined,
-                  }),
+                  ai_context: aiContext(m.aiContext),
+                  custom_extensions: customExtensions(m.customExtensions),
                 },
                 `metric:${m.id}`,
-              )
-            })
+              ),
+            )
           : undefined,
+      custom_extensions: customExtensions(model.customExtensions),
     },
-    'info',
+    'model',
   )
 
   return {

@@ -1,158 +1,156 @@
-export type DataType =
-  | 'string'
-  | 'integer'
-  | 'decimal'
-  | 'boolean'
-  | 'date'
-  | 'timestamp'
+/**
+ * 编辑器模型：与官方 OSI JSON Schema (v0.2.0.dev0) 1:1 对应。
+ * 每个接口的每个属性都映射到 osi-schema.json 中的一个配置点。
+ * id 字段仅供编辑器内部使用（React key 与双向高亮），不会输出到规范。
+ */
 
-export type AggregationType =
-  | 'sum'
-  | 'avg'
-  | 'count'
-  | 'count_distinct'
-  | 'min'
-  | 'max'
-  | 'median'
+/** $defs/Dialect：官方支持的表达式方言枚举 */
+export type Dialect = 'ANSI_SQL' | 'SNOWFLAKE' | 'MDX' | 'TABLEAU' | 'DATABRICKS' | 'MAQL'
 
-export type RelationshipType = 'many_to_one' | 'one_to_one' | 'one_to_many'
+export const DIALECTS: Dialect[] = [
+  'ANSI_SQL',
+  'SNOWFLAKE',
+  'MDX',
+  'TABLEAU',
+  'DATABRICKS',
+  'MAQL',
+]
 
-export type JoinType = 'inner' | 'left_outer' | 'full_outer'
+/** $defs/Vendor 官方示例值（任意字符串均合法） */
+export const VENDOR_EXAMPLES = [
+  'COMMON',
+  'SNOWFLAKE',
+  'SALESFORCE',
+  'DBT',
+  'DATABRICKS',
+  'GOODDATA',
+]
 
-export type TimeGranularity =
-  | 'second'
-  | 'minute'
-  | 'hour'
-  | 'day'
-  | 'week'
-  | 'month'
-  | 'quarter'
-  | 'year'
-
-export type Classification = 'public' | 'internal' | 'confidential' | 'restricted'
-
-export interface OsiDimension {
+/** $defs/DialectExpression：{ dialect, expression } */
+export interface OsiDialectExpression {
   id: string
-  name: string
-  label: string
-  expr: string
-  dataType: DataType
-  description: string
-  synonyms: string[]
-  sampleValues: string[]
-  isTimeDimension: boolean
-  granularity?: TimeGranularity
-  isPrimaryKey: boolean
-  isUnique: boolean
-  classification: Classification
+  dialect: Dialect
+  expression: string
 }
 
-/** 事实 / 度量列：数据集行级别的可聚合数值字段 */
-export interface OsiFact {
-  id: string
-  name: string
-  label: string
-  expr: string
-  dataType: DataType
-  description: string
+/**
+ * $defs/AIContext：oneOf [string, { instructions, synonyms, examples }]
+ * enabled=false 时不输出 ai_context；mode 切换字符串 / 结构化两种官方形态
+ */
+export interface OsiAiContext {
+  enabled: boolean
+  mode: 'text' | 'structured'
+  /** 字符串形态 */
+  text: string
+  /** 结构化形态：AI 使用说明 */
+  instructions: string
+  /** 结构化形态：同义词 */
   synonyms: string[]
+  /** 结构化形态：示例问题 / 用例 */
+  examples: string[]
 }
 
+/** $defs/CustomExtension：{ vendor_name, data }（data 为 JSON 字符串） */
+export interface OsiCustomExtension {
+  id: string
+  vendorName: string
+  data: string
+}
+
+/** Field.dimension.is_time 的三态：不输出 dimension / 输出 {} / 输出 { is_time } */
+export type DimensionMode = 'none' | 'plain' | 'time' | 'not_time'
+
+/** $defs/Field：数据集中的行级字段 */
+export interface OsiField {
+  id: string
+  /** required */
+  name: string
+  /** required：expression.dialects（minItems: 1） */
+  dialects: OsiDialectExpression[]
+  /** dimension 配置点（含 is_time 布尔） */
+  dimensionMode: DimensionMode
+  label: string
+  description: string
+  aiContext: OsiAiContext
+  customExtensions: OsiCustomExtension[]
+}
+
+/** Dataset.unique_keys 中的一组唯一键（可单列或复合） */
+export interface OsiUniqueKey {
+  id: string
+  columns: string[]
+}
+
+/** $defs/Dataset：逻辑数据集 */
 export interface OsiDataset {
   id: string
+  /** required */
   name: string
-  label: string
+  /** required：物理表 database.schema.table 或查询 */
+  source: string
+  /** primary_key：单列或复合主键 */
+  primaryKey: string[]
+  /** unique_keys：多组唯一键定义 */
+  uniqueKeys: OsiUniqueKey[]
   description: string
-  database: string
-  schema: string
-  table: string
-  /** 可选：用 SQL 派生数据集（替代物理表） */
-  sql: string
-  dimensions: OsiDimension[]
-  facts: OsiFact[]
+  aiContext: OsiAiContext
+  fields: OsiField[]
+  customExtensions: OsiCustomExtension[]
 }
 
-export interface OsiMetric {
-  id: string
-  name: string
-  label: string
-  datasetId: string
-  expr: string
-  agg: AggregationType
-  /** 可选的 WHERE 过滤条件，限定指标统计口径 */
-  filterExpr: string
-  format: string
-  unit: string
-  description: string
-  synonyms: string[]
-  certified: boolean
-}
-
+/** $defs/Relationship：数据集间外键关系 */
 export interface OsiRelationship {
   id: string
+  /** required */
   name: string
+  /** required：多方数据集（引用 dataset id，输出时转为 name） */
   fromDatasetId: string
-  fromColumn: string
+  /** required：一方数据集 */
   toDatasetId: string
-  toColumn: string
-  type: RelationshipType
-  joinType: JoinType
+  /** required：from 侧外键列（minItems: 1，支持复合） */
+  fromColumns: string[]
+  /** required：to 侧主/唯一键列（minItems: 1，支持复合） */
+  toColumns: string[]
+  aiContext: OsiAiContext
+  customExtensions: OsiCustomExtension[]
 }
 
-/** 命名过滤器：可复用的查询过滤条件 */
-export interface OsiFilter {
+/** $defs/Metric：业务度量指标 */
+export interface OsiMetric {
   id: string
+  /** required */
   name: string
-  label: string
-  datasetId: string
-  expr: string
+  /** required：expression.dialects（minItems: 1） */
+  dialects: OsiDialectExpression[]
   description: string
-  synonyms: string[]
+  aiContext: OsiAiContext
+  customExtensions: OsiCustomExtension[]
 }
 
-/** 验证查询：经人工确认的自然语言问题与对应 SQL */
-export interface OsiVerifiedQuery {
-  id: string
-  name: string
-  question: string
-  sql: string
-  verifiedBy: string
-  verifiedAt: string
-  useAsOnboarding: boolean
-}
-
-/** 业务词汇表条目 */
-export interface OsiGlossaryTerm {
-  id: string
-  term: string
-  definition: string
-  synonyms: string[]
-}
-
-export interface OsiModelInfo {
-  name: string
-  version: string
-  description: string
-  owner: string
-  domain: string
-  defaultTimezone: string
-  locale: string
-  certified: boolean
-  tags: string[]
-}
-
+/** $defs/SemanticModel：顶层语义模型容器 */
 export interface OsiModel {
-  info: OsiModelInfo
+  /** required */
+  name: string
+  description: string
+  aiContext: OsiAiContext
+  /** required（minItems: 1） */
   datasets: OsiDataset[]
-  metrics: OsiMetric[]
   relationships: OsiRelationship[]
-  filters: OsiFilter[]
-  verifiedQueries: OsiVerifiedQuery[]
-  glossary: OsiGlossaryTerm[]
-  /** 面向 AI / NL2SQL 引擎的自定义指令 */
-  customInstructions: string
+  metrics: OsiMetric[]
+  customExtensions: OsiCustomExtension[]
 }
 
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10)
+}
+
+export function emptyAiContext(): OsiAiContext {
+  return {
+    enabled: false,
+    mode: 'structured',
+    text: '',
+    instructions: '',
+    synonyms: [],
+    examples: [],
+  }
 }
