@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from 'react'
 import {
   Database,
   FileText,
-  Hexagon,
   History,
   Link2,
   Plus,
@@ -37,6 +36,7 @@ import { AiPanel } from './ai-panel'
 import { SettingsDialog } from './settings-dialog'
 import { SnapshotsDialog } from './snapshots-dialog'
 import { GraphView } from './graph-view'
+import { OsiLogo } from './logo'
 
 type Section = 'model' | 'datasets' | 'relationships' | 'metrics' | 'graph'
 
@@ -279,7 +279,7 @@ export function OsiConfigurator() {
       <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-4 py-3 md:px-6">
         <div className="flex items-center gap-3 min-w-0">
           <div className="flex size-8 shrink-0 items-center justify-center rounded-md bg-primary/10">
-            <Hexagon className="size-4 text-primary" />
+            <OsiLogo className="size-5 text-primary" />
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold leading-tight">OSI 配置器</h1>
