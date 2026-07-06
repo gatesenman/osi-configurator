@@ -159,7 +159,7 @@ semantic_model:                      # 顶层数组，通常一个元素
           - name: 字段名（必填）
             expression:              # 必填；物理列直接写列名作为表达式
               dialects:
-                - dialect: ANSI_SQL   # 枚举：ANSI_SQL / SNOWFLAKE_SQL / DATABRICKS_SQL / BIGQUERY_SQL / REDSHIFT_SQL / POSTGRES_SQL / MYSQL_SQL / TSQL
+                - dialect: ANSI_SQL   # 官方枚举（仅这 6 个合法）：ANSI_SQL / SNOWFLAKE / MDX / TABLEAU / DATABRICKS / MAQL
                   expression: SQL 表达式或列名
             dimension: {}            # 是维度时给 {}；时间维度给 { is_time: true }；非维度省略
             label: 展示名
@@ -184,8 +184,9 @@ semantic_model:                      # 顶层数组，通常一个元素
 1. 只输出一个 yaml 代码块，不要输出任何解释文字
 2. 所有 name 用 snake_case 英文；label/description/ai_context 用中文
 3. 每个 metric 和计算字段的 expression 至少包含一条 ANSI_SQL 方言
-4. relationships 的 from/to 必须引用已定义数据集的 name，列必须存在于对应数据集
-5. 为常用实体补充合理的 ai_context（同义词、口径说明），提升语义层可用性`
+4. dialect 只能取官方枚举值 ANSI_SQL / SNOWFLAKE / MDX / TABLEAU / DATABRICKS / MAQL，禁止使用 SNOWFLAKE_SQL、BIGQUERY_SQL、POSTGRES_SQL 等不存在的值
+5. relationships 的 from/to 必须引用已定义数据集的 name，列必须存在于对应数据集
+6. 为常用实体补充合理的 ai_context（同义词、口径说明），提升语义层可用性`
 
 /** 测试提供商连通性：请求 /models 列表（多数 OpenAI 兼容服务支持） */
 export async function testConnection(settings: AiSettings): Promise<{ ok: boolean; message: string }> {

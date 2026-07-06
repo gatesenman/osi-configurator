@@ -11,7 +11,7 @@ import type {
   OsiModel,
   OsiRelationship,
 } from './osi-types'
-import { emptyAiContext, uid } from './osi-types'
+import { DIALECTS, emptyAiContext, uid } from './osi-types'
 
 /**
  * 导入解析：将官方 OSI 规范文件（YAML / JSON）反向映射为编辑器模型。
@@ -62,6 +62,15 @@ export function importCustomExtensions(v: unknown): OsiCustomExtension[] {
     }))
 }
 
+/** 非法方言值规范化：常见变体（如 SNOWFLAKE_SQL / DATABRICKS_SQL）映射回官方枚举，未知值回退 ANSI_SQL */
+function normalizeDialect(v: string): Dialect {
+  const upper = v.toUpperCase()
+  if ((DIALECTS as string[]).includes(upper)) return upper as Dialect
+  const base = upper.replace(/_?SQL$/, '')
+  if ((DIALECTS as string[]).includes(base)) return base as Dialect
+  return 'ANSI_SQL'
+}
+
 /** $defs/Expression：{ dialects: [{ dialect, expression }] } */
 export function importDialects(v: unknown): OsiDialectExpression[] {
   if (v === null || typeof v !== 'object') return []
@@ -71,7 +80,7 @@ export function importDialects(v: unknown): OsiDialectExpression[] {
     .filter((d): d is Record<string, unknown> => d !== null && typeof d === 'object')
     .map((d) => ({
       id: uid(),
-      dialect: (asString(d.dialect) || 'ANSI_SQL') as Dialect,
+      dialect: normalizeDialect(asString(d.dialect) || 'ANSI_SQL'),
       expression: asString(d.expression),
     }))
 }
