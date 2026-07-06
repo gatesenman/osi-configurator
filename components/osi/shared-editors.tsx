@@ -1,6 +1,7 @@
 'use client'
 
-import { Plus, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { Plus, Trash2, Wand2 } from 'lucide-react'
 import type {
   Dialect,
   OsiAiContext,
@@ -8,6 +9,7 @@ import type {
   OsiDialectExpression,
 } from '@/lib/osi-types'
 import { DIALECTS, VENDOR_EXAMPLES, uid } from '@/lib/osi-types'
+import { findVendorPreset, vendorTemplate } from '@/lib/osi-vendors'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -264,52 +266,221 @@ export function CustomExtensionsEditor({
         </Button>
       </div>
 
-      {value.map((ext) => {
-        let jsonError = false
-        try {
-          JSON.parse(ext.data)
-        } catch {
-          jsonError = true
-        }
-        return (
-          <div key={ext.id} className="flex flex-col gap-2 rounded-md border border-border p-2.5">
-            <div className="flex items-center gap-2">
-              <Input
-                value={ext.vendorName}
-                onChange={(e) => update(ext.id, { vendorName: e.target.value })}
-                className="h-8 flex-1 font-mono text-sm"
-                placeholder="vendor_name"
-                list={`vendors-${ext.id}`}
-                aria-label="vendor_name"
-              />
-              <datalist id={`vendors-${ext.id}`}>
-                {VENDOR_EXAMPLES.map((v) => (
-                  <option key={v} value={v} />
-                ))}
-              </datalist>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => onChange(value.filter((x) => x.id !== ext.id))}
-                aria-label="删除扩展"
+      {value.map((ext) => (
+        <ExtensionEntry
+          key={ext.id}
+          ext={ext}
+          onUpdate={(patch) => update(ext.id, patch)}
+          onRemove={() => onChange(value.filter((x) => x.id !== ext.id))}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** 解析 data 为扁平对象（可进入键值对模式）；嵌套值以 JSON 字面量呈现 */
+function parseFlat(data: string): Record<string, string> | null {
+  try {
+    const obj = JSON.parse(data)
+    if (obj === null || typeof obj !== 'object' || Array.isArray(obj)) return null
+    const flat: Record<string, string> = {}
+    for (const [k, v] of Object.entries(obj)) {
+      flat[k] = typeof v === 'string' ? v : JSON.stringify(v)
+    }
+    return flat
+  } catch {
+    return null
+  }
+}
+
+/** 将键值对写回 JSON 字符串：值先尝试按 JSON 字面量解析（保留 true/123/[]），否则按字符串 */
+function flatToJson(entries: [string, string][]): string {
+  const obj: Record<string, unknown> = {}
+  for (const [k, v] of entries) {
+    if (!k.trim()) continue
+    try {
+      obj[k] = JSON.parse(v)
+    } catch {
+      obj[k] = v
+    }
+  }
+  return JSON.stringify(obj, null, 2)
+}
+
+/**
+ * 单条厂商扩展编辑：厂商感知（预设键提示 + 一键模板），
+ * 键值对 / JSON 源码双模式编辑，数据始终存为官方要求的 JSON 字符串。
+ */
+function ExtensionEntry({
+  ext,
+  onUpdate,
+  onRemove,
+}: {
+  ext: OsiCustomExtension
+  onUpdate: (patch: Partial<OsiCustomExtension>) => void
+  onRemove: () => void
+}) {
+  const [rawMode, setRawMode] = useState(false)
+  const preset = findVendorPreset(ext.vendorName)
+  const flat = parseFlat(ext.data)
+  const kvAvailable = flat !== null
+  const useKv = kvAvailable && !rawMode
+
+  let jsonError = false
+  try {
+    JSON.parse(ext.data)
+  } catch {
+    jsonError = true
+  }
+
+  const entries: [string, string][] = flat ? Object.entries(flat) : []
+  const updateEntry = (idx: number, key: string, val: string) => {
+    const next = entries.map((e, i): [string, string] => (i === idx ? [key, val] : e))
+    onUpdate({ data: flatToJson(next) })
+  }
+  const usedKeys = new Set(entries.map(([k]) => k))
+  const suggestions = preset?.keys.filter((k) => !usedKeys.has(k.key)) ?? []
+
+  return (
+    <div className="flex flex-col gap-2 rounded-md border border-border p-2.5">
+      <div className="flex items-center gap-2">
+        <Input
+          value={ext.vendorName}
+          onChange={(e) => onUpdate({ vendorName: e.target.value })}
+          className="h-8 flex-1 font-mono text-sm"
+          placeholder="vendor_name"
+          list={`vendors-${ext.id}`}
+          aria-label="vendor_name"
+        />
+        <datalist id={`vendors-${ext.id}`}>
+          {VENDOR_EXAMPLES.map((v) => (
+            <option key={v} value={v} />
+          ))}
+        </datalist>
+        {preset ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 shrink-0 gap-1 bg-transparent text-xs"
+            onClick={() => onUpdate({ data: vendorTemplate(preset) })}
+            title={`插入 ${preset.name} 全部常用键模板`}
+          >
+            <Wand2 className="size-3" />
+            模板
+          </Button>
+        ) : null}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+          onClick={onRemove}
+          aria-label="删除扩展"
+        >
+          <Trash2 className="size-3.5" />
+        </Button>
+      </div>
+
+      {preset ? <p className="text-xs text-muted-foreground/80">{preset.description}</p> : null}
+
+      <div className="flex rounded-md border border-border p-0.5 w-fit" role="tablist" aria-label="data 编辑模式">
+        {(
+          [
+            { key: false, label: '键值对' },
+            { key: true, label: 'JSON 源码' },
+          ] as const
+        ).map((m) => (
+          <button
+            key={String(m.key)}
+            type="button"
+            role="tab"
+            aria-selected={useKv === !m.key}
+            disabled={!kvAvailable && !m.key}
+            onClick={() => setRawMode(m.key)}
+            className={`rounded px-2.5 py-1 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              useKv === !m.key
+                ? 'bg-accent text-accent-foreground font-medium'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {useKv ? (
+        <div className="flex flex-col gap-1.5">
+          {entries.map(([k, v], idx) => {
+            const hint = preset?.keys.find((p) => p.key === k)
+            return (
+              <div key={idx} className="flex items-center gap-1.5">
+                <Input
+                  value={k}
+                  onChange={(e) => updateEntry(idx, e.target.value, v)}
+                  className="h-7 w-36 shrink-0 font-mono text-xs"
+                  placeholder="key"
+                  aria-label="配置键"
+                  title={hint?.hint}
+                />
+                <Input
+                  value={v}
+                  onChange={(e) => updateEntry(idx, k, e.target.value)}
+                  className="h-7 flex-1 font-mono text-xs"
+                  placeholder={hint?.example ?? 'value'}
+                  aria-label={`${k} 的值`}
+                />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={() => onUpdate({ data: flatToJson(entries.filter((_, i) => i !== idx)) })}
+                  aria-label={`删除键 ${k}`}
+                >
+                  <Trash2 className="size-3" />
+                </Button>
+              </div>
+            )
+          })}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 gap-1 bg-transparent px-2 text-xs"
+              onClick={() => {
+                let n = 1
+                while (usedKeys.has(`key_${n}`)) n++
+                onUpdate({ data: flatToJson([...entries, [`key_${n}`, '']]) })
+              }}
+            >
+              <Plus className="size-3" />
+              添加键
+            </Button>
+            {suggestions.slice(0, 4).map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => onUpdate({ data: flatToJson([...entries, [s.key, s.example]]) })}
+                className="rounded border border-dashed border-border px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+                title={s.hint}
               >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
-            <Textarea
-              value={ext.data}
-              onChange={(e) => update(ext.id, { data: e.target.value })}
-              className={`min-h-14 font-mono text-xs ${jsonError ? 'border-destructive' : ''}`}
-              placeholder='{"key": "value"}'
-              aria-label="data（JSON 字符串）"
-            />
-            {jsonError ? (
-              <p className="text-xs text-destructive">data 必须是合法的 JSON 字符串</p>
-            ) : null}
+                + {s.key}
+              </button>
+            ))}
           </div>
-        )
-      })}
+        </div>
+      ) : (
+        <>
+          <Textarea
+            value={ext.data}
+            onChange={(e) => onUpdate({ data: e.target.value })}
+            className={`min-h-14 font-mono text-xs ${jsonError ? 'border-destructive' : ''}`}
+            placeholder='{"key": "value"}'
+            aria-label="data（JSON 字符串）"
+          />
+          {jsonError ? (
+            <p className="text-xs text-destructive">data 必须是合法的 JSON 字符串（修正后可切回键值对模式）</p>
+          ) : null}
+        </>
+      )}
     </div>
   )
 }
