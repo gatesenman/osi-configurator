@@ -5,13 +5,17 @@ import {
   Database,
   FileText,
   Hexagon,
+  History,
   Link2,
   Plus,
+  Redo2,
   RotateCcw,
   Settings,
   Sigma,
   Sparkles,
+  Undo2,
   Upload,
+  Waypoints,
   X,
 } from 'lucide-react'
 import type { OsiModel } from '@/lib/osi-types'
@@ -21,6 +25,7 @@ import { importSpec } from '@/lib/osi-import'
 import type { AppSettings } from '@/lib/osi-settings'
 import { applyTheme, loadAppSettings, saveAppSettings } from '@/lib/osi-settings'
 import { defaultModel, emptyModel } from '@/lib/osi-defaults'
+import { useOsiDocument } from '@/lib/osi-history'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ModelInfoPanel } from './model-info-panel'
@@ -30,14 +35,17 @@ import { RelationshipsPanel } from './relationships-panel'
 import { SpecPreview } from './spec-preview'
 import { AiPanel } from './ai-panel'
 import { SettingsDialog } from './settings-dialog'
+import { SnapshotsDialog } from './snapshots-dialog'
+import { GraphView } from './graph-view'
 
-type Section = 'model' | 'datasets' | 'relationships' | 'metrics'
+type Section = 'model' | 'datasets' | 'relationships' | 'metrics' | 'graph'
 
 const SECTIONS: { id: Section; label: string; icon: typeof FileText }[] = [
   { id: 'model', label: '模型', icon: FileText },
   { id: 'datasets', label: '数据集', icon: Database },
   { id: 'relationships', label: '关系', icon: Link2 },
   { id: 'metrics', label: '指标', icon: Sigma },
+  { id: 'graph', label: '关系图', icon: Waypoints },
 ]
 
 /** 选择键前缀 → 配置分区（字段级键形如 dataset:d1.source / model.datasets） */
@@ -75,10 +83,10 @@ function findSelTarget(root: HTMLElement, sel: SelKey): Element | null {
 }
 
 export function OsiConfigurator() {
-  /** 官方 semantic_model 为数组：支持一个文件包含多个语义模型 */
-  const [models, setModels] = useState<OsiModel[]>([defaultModel])
-  const [activeIdx, setActiveIdx] = useState(0)
-  const model = models[activeIdx]
+  /** 官方 semantic_model 为数组：撤销重做 + 本机自动保存由 useOsiDocument 统一管理 */
+  const { models, setModels, activeIdx, setActiveIdx, undo, redo, canUndo, canRedo, resetTo } =
+    useOsiDocument([defaultModel])
+  const model = models[Math.min(activeIdx, models.length - 1)]
   /** 更新当前激活的模型 */
   const setModel = (m: OsiModel) => {
     setModels((prev) => prev.map((x, i) => (i === activeIdx ? m : x)))
@@ -89,6 +97,7 @@ export function OsiConfigurator() {
   const [selEvent, setSelEvent] = useState<{ y: number | null; n: number }>({ y: null, n: 0 })
   const [importError, setImportError] = useState<string | null>(null)
   const [aiOpen, setAiOpen] = useState(false)
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'general' | 'provider'>('general')
   const [appSettings, setAppSettings] = useState<AppSettings>(loadAppSettings)
@@ -110,6 +119,24 @@ export function OsiConfigurator() {
     setAppSettings(s)
     saveAppSettings(s)
   }
+
+  // 全局撤销重做快捷键：Ctrl/Cmd+Z 撤销，Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey)) return
+      const key = e.key.toLowerCase()
+      if (key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) redo()
+        else undo()
+      } else if (key === 'y') {
+        e.preventDefault()
+        redo()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
 
   /** 从右侧预览（YAML/JSON 行或校验错误）选中实体 → 切换分区并定位表单（对齐到被点行的视口位置） */
   const handlePreviewSelect = (sel: SelKey | null, y?: number) => {
@@ -244,6 +271,7 @@ export function OsiConfigurator() {
     datasets: model.datasets.length,
     relationships: model.relationships.length,
     metrics: model.metrics.length,
+    graph: null,
   }
 
   return (
@@ -279,6 +307,30 @@ export function OsiConfigurator() {
               e.target.value = ''
             }}
           />
+          <div className="mr-1 flex items-center rounded-md border border-border">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-r-none text-muted-foreground"
+              onClick={undo}
+              disabled={!canUndo}
+              aria-label="撤销（Ctrl+Z）"
+              title="撤销（Ctrl+Z）"
+            >
+              <Undo2 className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 rounded-l-none border-l border-border text-muted-foreground"
+              onClick={redo}
+              disabled={!canRedo}
+              aria-label="重做（Ctrl+Shift+Z）"
+              title="重做（Ctrl+Shift+Z）"
+            >
+              <Redo2 className="size-3.5" />
+            </Button>
+          </div>
           <Button size="sm" className="h-8 gap-1.5" onClick={() => setAiOpen(true)}>
             <Sparkles className="size-3.5" />
             <span className="hidden sm:inline">AI 生成</span>
@@ -296,10 +348,19 @@ export function OsiConfigurator() {
             variant="outline"
             size="sm"
             className="h-8 gap-1.5 bg-transparent"
+            onClick={() => setSnapshotsOpen(true)}
+          >
+            <History className="size-3.5" />
+            <span className="hidden sm:inline">版本</span>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-1.5 bg-transparent"
             onClick={() => {
-              setModels([defaultModel])
-              setActiveIdx(0)
+              resetTo([defaultModel])
               setSelection(null)
+              setSection('model')
             }}
           >
             <RotateCcw className="size-3.5" />
@@ -420,7 +481,10 @@ export function OsiConfigurator() {
           onFocusCapture={handleFormFocus}
           className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6 lg:min-w-0"
         >
-          <div className="mx-auto max-w-2xl">
+          <div className={section === 'graph' ? 'h-full' : 'mx-auto max-w-2xl'}>
+            {section === 'graph' ? (
+              <GraphView model={model} selection={selection} onSelect={handlePreviewSelect} />
+            ) : null}
             {section === 'model' ? <ModelInfoPanel model={model} onChange={setModel} /> : null}
             {section === 'datasets' ? (
               <DatasetsPanel
@@ -473,6 +537,19 @@ export function OsiConfigurator() {
         onOpenSettings={() => {
           setSettingsTab('provider')
           setSettingsOpen(true)
+        }}
+      />
+
+      <SnapshotsDialog
+        open={snapshotsOpen}
+        models={models}
+        onClose={() => setSnapshotsOpen(false)}
+        onRestore={(restored) => {
+          // 通过带历史的 setModels 应用：恢复操作本身可撤销
+          setModels(restored)
+          setActiveIdx(0)
+          setSelection(null)
+          setSection('model')
         }}
       />
 

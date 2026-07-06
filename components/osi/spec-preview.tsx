@@ -15,6 +15,8 @@ import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey, SpecLine } from '@/lib/osi-serialize'
 import { OSI_VERSION, toJsonLines, toYamlLines } from '@/lib/osi-serialize'
 import { validateModel } from '@/lib/osi-validate'
+import type { LintSeverity } from '@/lib/osi-lint'
+import { lintCounts, lintModel } from '@/lib/osi-lint'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -145,6 +147,9 @@ export function SpecPreview({
   )
   const content = useMemo(() => lines.map((l) => l.text).join('\n').concat('\n'), [lines])
   const validation = useMemo(() => validateModel(models, activeIdx), [models, activeIdx])
+  const lintIssues = useMemo(() => lintModel(model), [model])
+  const lint = useMemo(() => lintCounts(lintIssues), [lintIssues])
+  const [showLint, setShowLint] = useState(false)
 
   // 外部（左侧表单）选中时，滚动到对应行（精确优先，再按前缀匹配子属性行），
   // 并把该行对齐到触发元素所在的视口纵坐标，实现左右位置对齐
@@ -339,6 +344,75 @@ export function SpecPreview({
                 </span>
               </button>
             ))}
+          </div>
+        ) : null}
+      </div>
+
+      {/* 语义级 Lint：Schema 之上的业务级检查（重名 / 关系引用 / 命名规范 / 描述覆盖） */}
+      <div className="border-t border-border">
+        <button
+          type="button"
+          onClick={() => setShowLint(!showLint)}
+          disabled={lintIssues.length === 0}
+          className={`flex w-full items-center gap-2 px-4 py-2 text-left text-xs ${
+            lintIssues.length === 0
+              ? 'cursor-default text-success'
+              : lint.error > 0
+                ? 'text-destructive hover:bg-accent/50'
+                : 'text-warning hover:bg-accent/50'
+          }`}
+          aria-expanded={lintIssues.length > 0 && showLint}
+        >
+          {lintIssues.length === 0 ? (
+            <>
+              <CircleCheck className="size-3.5 shrink-0" />
+              <span>语义 Lint 通过</span>
+            </>
+          ) : (
+            <>
+              <CircleAlert className="size-3.5 shrink-0" />
+              <span className="flex items-center gap-2">
+                语义 Lint：
+                {lint.error > 0 ? <span className="text-destructive">{lint.error} 错误</span> : null}
+                {lint.warning > 0 ? <span className="text-warning">{lint.warning} 警告</span> : null}
+                {lint.info > 0 ? (
+                  <span className="text-muted-foreground">{lint.info} 建议</span>
+                ) : null}
+              </span>
+              <span className="ml-auto flex items-center gap-1 font-mono text-[10px] text-muted-foreground">
+                {showLint ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
+              </span>
+            </>
+          )}
+        </button>
+        {lintIssues.length > 0 && showLint ? (
+          <div className="max-h-40 overflow-y-auto border-t border-border">
+            {lintIssues.map((issue, i) => {
+              const color: Record<LintSeverity, string> = {
+                error: 'text-destructive',
+                warning: 'text-warning',
+                info: 'text-muted-foreground',
+              }
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    if (issue.sel) {
+                      internalClick.current = false
+                      onSelect(issue.sel)
+                    }
+                  }}
+                  className="flex w-full items-start gap-2 px-4 py-1.5 text-left text-xs hover:bg-accent/50"
+                >
+                  <CircleAlert className={`mt-0.5 size-3 shrink-0 ${color[issue.severity]}`} />
+                  <span className="min-w-0">
+                    <span className="font-mono text-[10px] text-muted-foreground">{issue.rule}</span>
+                    <span className="block text-foreground">{issue.message}</span>
+                  </span>
+                </button>
+              )
+            })}
           </div>
         ) : null}
       </div>

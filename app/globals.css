@@ -43,6 +43,7 @@
   --color-syntax-number: var(--syntax-number);
   --color-syntax-comment: var(--syntax-comment);
   --color-success: var(--success);
+  --color-warning: var(--warning);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -73,6 +74,7 @@
   --input: oklch(0 0 0 / 14%);
   --ring: oklch(0.52 0.19 255);
   --success: oklch(0.55 0.15 150);
+  --warning: oklch(0.6 0.13 75);
   --syntax-key: oklch(0.48 0.15 255);
   --syntax-string: oklch(0.5 0.12 150);
   --syntax-number: oklch(0.55 0.14 60);
