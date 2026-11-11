@@ -6,7 +6,7 @@ A visual configurator for the Open Semantic Interchange (OSI) standard: configur
 
 > Detailed docs (Chinese) are in the [Wiki](docs/wiki/Home.md): [Getting started](docs/wiki/快速上手.md) · [OSI spec alignment](docs/wiki/OSI-规范对齐.md) · [AI generation & partial edits](docs/wiki/AI-生成与局部调整.md) · [Feature guide](docs/wiki/功能指南.md)
 >
-> The app UI is in Chinese; the screenshots below are from the real app.
+> The app UI is Chinese only, so there is one set of screenshots. All of them were captured from the real app (static `next build` export, headless Chromium, built-in sample model).
 
 ![Main window: form editing on the left, live OSI spec on the right](docs/screenshots/overview.png)
 

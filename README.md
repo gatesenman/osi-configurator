@@ -8,6 +8,8 @@ Open Semantic Interchange（OSI）标准的可视化配置器：左侧表单配�
 
 ![主界面：左侧表单编辑，右侧实时生成 OSI 规范](docs/screenshots/overview.png)
 
+> 本页截图均为 `next build` 静态导出后在无头 Chromium 中实拍（内置示例模型）。界面目前只有中文，因此只有中文截图。
+
 ## 功能
 
 ### 1:1 覆盖官方 OSI 规范全部配置点
