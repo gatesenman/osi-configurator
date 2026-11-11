@@ -1,5 +1,7 @@
 # OSI 可视化配置器
 
+**简体中文** · [English](README.en.md)
+
 Open Semantic Interchange（OSI）标准的可视化配置器：左侧表单配置语义模型，右侧实时生成符合官方 JSON Schema（v0.2.0.dev0）的 YAML / JSON 规范文件。适用于为 BI、AI 分析工具定义统一的语义层（数据集、维度、指标、关系与 AI 上下文）。
 
 > 详细文档见 [Wiki](docs/wiki/Home.md)：[快速上手](docs/wiki/快速上手.md) · [OSI 规范对齐](docs/wiki/OSI-规范对齐.md) · [AI 生成与局部调整](docs/wiki/AI-生成与局部调整.md) · [功能指南](docs/wiki/功能指南.md)
@@ -155,6 +157,23 @@ electron/               # Electron 主进程
 .github/workflows/      # 三平台桌面构建工作流
 docs/screenshots/       # README 截图
 ```
+
+## 配置
+
+本应用无需后端与环境变量，所有配置都在界面中完成并保存在本机浏览器 `localStorage`：
+
+| 存储键 | 内容 |
+| --- | --- |
+| `osi-ai-settings` | AI 提供商、Base URL、模型与 API Key。内置 SiliconFlow、DeepSeek、OpenAI、Moonshot（Kimi）、智谱、通义（DashScope）、OpenRouter、Groq、Ollama（本地）预设，也可选「自定义」填写任意 OpenAI 兼容接口 |
+| `osi-app-settings` | 主题（跟随系统 / 浅色 / 深色）、预览默认格式（YAML / JSON）、联动滚动、自动展开字段卡 |
+| `osi:document` | 当前编辑的语义模型（自动保存、撤销重做） |
+| `osi:snapshots` | 命名版本快照 |
+
+> API Key 只保存在本机，由浏览器直接请求所选提供商，不经过任何中转服务器。
+
+## 参与贡献
+
+欢迎提交 Issue 和 Pull Request。提交前请运行 `pnpm lint` 和 `pnpm build`，并保持与官方 `osi-schema.json` 1:1 对齐（新增配置点请同步更新 `lib/osi-serialize.ts` 与 `lib/osi-import.ts`，保证导入 / 导出 round-trip 无损）。
 
 ## 许可
 
