@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type KeyboardEvent, type MouseEvent } from 'react'
 import type { OsiModel } from '@/lib/osi-types'
 import type { SelKey } from '@/lib/osi-serialize'
 
@@ -73,8 +73,15 @@ export function GraphView({
     return offsets
   }, [model.relationships])
 
-  const handleClick = (sel: SelKey, e: React.MouseEvent) => {
+  const handleClick = (sel: SelKey, e: MouseEvent) => {
     onSelect(sel, e.clientY)
+  }
+
+  const handleKey = (sel: SelKey, e: KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onSelect(sel)
+    }
   }
 
   if (model.datasets.length === 0) {
@@ -139,8 +146,10 @@ export function GraphView({
                 <g
                   key={r.id}
                   onClick={(e) => handleClick(sel, e)}
-                  className="cursor-pointer"
+                  className="graph-hotspot cursor-pointer"
+                  tabIndex={0}
                   role="button"
+                  onKeyDown={(event) => handleKey(sel, event)}
                   aria-label={`自关联关系 ${r.name}`}
                 >
                   <path
@@ -178,8 +187,10 @@ export function GraphView({
               <g
                 key={r.id}
                 onClick={(e) => handleClick(sel, e)}
-                className="cursor-pointer"
+                className="graph-hotspot cursor-pointer"
+                tabIndex={0}
                 role="button"
+                onKeyDown={(event) => handleKey(sel, event)}
                 aria-label={`关系 ${r.name}：${r.fromColumns.join(',')} → ${r.toColumns.join(',')}`}
               >
                 <path
@@ -226,8 +237,10 @@ export function GraphView({
                 key={ds.id}
                 transform={`translate(${pos.x - NODE_W / 2}, ${pos.y - NODE_H / 2})`}
                 onClick={(e) => handleClick(sel, e)}
-                className="cursor-pointer"
+                className="graph-hotspot cursor-pointer"
+                tabIndex={0}
                 role="button"
+                onKeyDown={(event) => handleKey(sel, event)}
                 aria-label={`数据集 ${ds.name}，${ds.fields.length} 个字段`}
               >
                 <rect

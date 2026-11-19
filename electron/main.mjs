@@ -2,6 +2,7 @@ import { app, BrowserWindow, protocol, net, shell } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { isAllowedExternalUrl } from './security.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // 打包后静态资源位于 asar 内的 out/ 目录
@@ -47,10 +48,21 @@ function createWindow() {
     },
   })
 
-  // 外部链接用系统浏览器打开
+  // 外部链接用系统浏览器打开，且仅允许 GitHub 与本机开发地址
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('http')) shell.openExternal(url)
+    if (isAllowedExternalUrl(url)) {
+      setImmediate(() => {
+        void shell.openExternal(url)
+      })
+    }
     return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    if (isAppNavigation(url)) return
+    event.preventDefault()
+    if (isAllowedExternalUrl(url)) {
+      void shell.openExternal(url)
+    }
   })
 
   if (app.isPackaged) {
@@ -58,6 +70,19 @@ function createWindow() {
   } else {
     win.loadURL(DEV_URL)
   }
+}
+
+function isAppNavigation(url) {
+  if (url.startsWith('app:')) return true
+  try {
+    const parsed = new URL(url)
+    if (parsed.protocol === 'http:' && (parsed.hostname === 'localhost' || parsed.hostname === '127.0.0.1')) {
+      return url === DEV_URL || url.startsWith(DEV_URL.endsWith('/') ? DEV_URL : `${DEV_URL}/`) || parsed.port === '3000'
+    }
+  } catch {
+    return false
+  }
+  return false
 }
 
 app.whenReady().then(() => {
