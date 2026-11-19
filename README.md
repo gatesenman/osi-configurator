@@ -6,6 +6,14 @@ Open Semantic Interchange（OSI）标准的可视化配置器：左侧表单配�
 
 ![主界面：左侧表单编辑，右侧实时生成 OSI 规范](docs/screenshots/overview.png)
 
+## What's new in 0.4.0
+
+Ships official-aligned example models (sales + inventory), a human and machine-readable validate report, and a YAML/JSON pack that reimports cleanly.
+
+```bash
+pnpm test
+```
+
 ## 功能
 
 ### 1:1 覆盖官方 OSI 规范全部配置点
