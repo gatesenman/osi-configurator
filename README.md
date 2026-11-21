@@ -156,6 +156,11 @@ electron/               # Electron 主进程
 docs/screenshots/       # README 截图
 ```
 
+
+## 贡献
+
+欢迎通过 Issue 和 Pull Request 参与，详见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。参与时请遵守 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+
 ## 许可
 
 本项目基于 OSI 开放规范构建，规范本身版权归 [Open Semantic Interchange](https://github.com/open-semantic-interchange) 项目所有。

@@ -17,3 +17,16 @@ node_modules
 # 构建产物（Next.js 静态导出 / Electron 打包）
 out/
 dist/
+
+# Additional hygiene
+Thumbs.db
+.env.local
+.env.*.local
+target/
+logs/
+*.log
+.venv/
+__pycache__/
+coverage/
+!.env.example
+!.env.example.*
