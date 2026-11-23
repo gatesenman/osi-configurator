@@ -79,13 +79,13 @@ OSI 是开放标准，各厂商实现有差异——通过官方 `custom_extensi
 
 ## 桌面版下载（Windows / macOS / Linux）
 
-到 [Releases](https://github.com/gatesenman/osi-configurator/releases) 页面下载对应平台安装包：
+到 [Releases v0.3.0](https://github.com/gatesenman/osi-configurator/releases/tag/v0.3.0) 下载当前最新安装包（不要再用占位名 `x.x.x`）：
 
 | 平台 | 文件 | 说明 |
 | --- | --- | --- |
-| Windows | `OSI.Configurator.Setup.x.x.x.exe` | NSIS 安装器 |
-| macOS | `OSI.Configurator-x.x.x-universal.dmg` | Intel / Apple Silicon 通用 |
-| Linux | `OSI.Configurator-x.x.x.AppImage` | 免安装，`chmod +x` 后直接运行 |
+| Windows | [OSI.Configurator.Setup.0.3.0.exe](https://github.com/gatesenman/osi-configurator/releases/download/v0.3.0/OSI.Configurator.Setup.0.3.0.exe) | NSIS 安装器 |
+| macOS | [OSI.Configurator-0.3.0-universal.dmg](https://github.com/gatesenman/osi-configurator/releases/download/v0.3.0/OSI.Configurator-0.3.0-universal.dmg) | Intel / Apple Silicon 通用 |
+| Linux | [OSI.Configurator-0.3.0.AppImage](https://github.com/gatesenman/osi-configurator/releases/download/v0.3.0/OSI.Configurator-0.3.0.AppImage) | 免安装，`chmod +x` 后直接运行 |
 
 > 安装包未做代码签名：Windows 首次运行需在 SmartScreen 中点「仍要运行」；macOS 首次打开需右键 →「打开」（或在 系统设置 → 隐私与安全性 中允许）。
 
